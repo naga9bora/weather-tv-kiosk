@@ -55,7 +55,8 @@ def load_keys():
             keys.update(json.load(f))
     except (IOError, OSError, ValueError):
         pass
-    for env, name in (("TOMORROW_KEY", "tomorrow"), ("OWM_KEY", "owm")):
+    for env, name in (("TOMORROW_KEY", "tomorrow"), ("OWM_KEY", "owm"),
+                      ("CARTO_KEY", "carto")):
         if os.environ.get(env):
             keys[name] = os.environ[env]
     return keys
@@ -108,16 +109,16 @@ def main():
 
     # --- API keys -------------------------------------------------------------
     keys = load_keys()
-    missing = [n for n in ("tomorrow", "owm") if not keys.get(n)]
+    missing = [n for n in ("tomorrow", "owm", "carto") if not keys.get(n)]
     if missing:
         raise SystemExit(
             "missing API key(s): %s\n"
             "create keys.local.json in the project root:\n"
-            '  {"tomorrow": "...", "owm": "..."}\n'
-            "or set TOMORROW_KEY and OWM_KEY in the environment."
+            '  {"tomorrow": "...", "owm": "...", "carto": "..."}\n'
+            "or set TOMORROW_KEY, OWM_KEY and CARTO_KEY in the environment."
             % ", ".join(missing))
     with open(os.path.join(assets, "keys.properties"), "w", encoding="utf-8") as f:
-        for name in ("tomorrow", "owm"):
+        for name in ("tomorrow", "owm", "carto"):
             f.write("%s=%s\n" % (name, keys[name]))
 
     res_dir = os.path.join(ANDROID, "res")

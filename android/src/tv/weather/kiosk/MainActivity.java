@@ -215,6 +215,9 @@ public class MainActivity extends Activity {
                     if (path.startsWith("/api/owm/")) {
                         return serveWeather(path, u);
                     }
+                    if (path.startsWith("/api/basemap/")) {
+                        return serveBasemap(path);
+                    }
                     if (path.startsWith("/api/radar/")) {
                         // MET radar GIF, proxied so the page gets it from this origin.
                         String rest = path.substring("/api/radar/".length());
@@ -470,6 +473,11 @@ public class MainActivity extends Activity {
             "https://api.openweathermap.org/data/2.5/forecast?lat=%.4f&lon=%.4f"
             + "&units=metric";
 
+    /* CARTO Dark Matter basemap tiles. CARTO stamps "API KEY REQUIRED" on every
+     * anonymous tile, so its key is proxied here too - the page keeps no key. */
+    private static final String CARTO_TILE_URL =
+            "https://a.basemaps.cartocdn.com/%s/%d/%d/%d.png?key=%s";
+
     private Properties keys = new Properties();
 
     /** Reads android/assets/keys.properties, generated at build time. */
@@ -555,6 +563,49 @@ public class MainActivity extends Activity {
         h.put("Content-Type", "text/plain; charset=utf-8");
         return new WebResourceResponse("text/plain", "utf-8", 503, "Not Configured", h,
                 new ByteArrayInputStream((which + " key not configured").getBytes()));
+    }
+
+    /**
+     * CARTO basemap tiles: /api/basemap/[labels/]z/x/y.png. The key stays in
+     * keys.properties and never reaches the page. Tiles are immutable, so the
+     * WebView is allowed to cache them for a day.
+     */
+    private WebResourceResponse serveBasemap(String path) {
+        Map<String, String> h = new HashMap<>();
+        h.put("Access-Control-Allow-Origin", "*");
+        String rest = path.substring("/api/basemap/".length());
+        boolean labels = rest.startsWith("labels/");
+        if (labels) rest = rest.substring("labels/".length());
+        if (rest.endsWith(".png")) rest = rest.substring(0, rest.length() - 4);
+        String[] p = rest.split("/");
+        if (p.length != 3) return badRequest(h, "bad tile");
+        int z, x, y;
+        try {
+            z = Integer.parseInt(p[0]);
+            x = Integer.parseInt(p[1]);
+            y = Integer.parseInt(p[2]);
+        } catch (NumberFormatException e) {
+            return badRequest(h, "bad tile");
+        }
+        if (z < 0 || z > 20) return badRequest(h, "bad tile");
+        int span = 1 << z;
+        if (x < 0 || x >= span || y < 0 || y >= span) return badRequest(h, "bad tile");
+        String key = keys.getProperty("carto", "");
+        if (key.isEmpty()) return noConfig(h, "carto");
+        String style = labels ? "dark_only_labels" : "dark_nolabels";
+        String url = String.format(java.util.Locale.US, CARTO_TILE_URL, style, z, x, y, key);
+        try {
+            byte[] body = fetchUrlBytes(url, 15000);
+            h.put("Content-Type", "image/png");
+            h.put("Cache-Control", "public, max-age=86400");
+            return new WebResourceResponse("image/png", null, 200, "OK", h,
+                    new ByteArrayInputStream(body));
+        } catch (Exception e) {
+            Log.w(TAG, "basemap tile failed: " + e);
+            h.put("Content-Type", "text/plain; charset=utf-8");
+            return new WebResourceResponse("text/plain", "utf-8", 502, "Bad Gateway", h,
+                    new ByteArrayInputStream("tile unavailable".getBytes()));
+        }
     }
 
     /* Native proxy to JAS/APIMS for the kiosk page. The upstream only allows

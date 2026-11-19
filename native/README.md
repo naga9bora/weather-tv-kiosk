@@ -34,7 +34,7 @@ Output: `native/app/build/outputs/apk/release/app-release.apk`
 ## Install on the TV
 
 ```bash
-adb connect 192.0.2.10:5555
+adb connect <tv-ip>:5555
 adb install -r native/app/build/outputs/apk/release/app-release.apk
 adb shell am start -n tv.weather.kiosk/.MainActivity
 ```

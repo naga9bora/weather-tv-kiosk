@@ -1,22 +1,29 @@
 # TV Weather Dashboard
 
-An always-on weather display for the Android TV box (`Android TV box`, 192.0.2.10), built as a
-tiny fullscreen kiosk app. No cloud account, no API key, no PC needed at runtime.
+An always-on weather display for an Android TV box, built as a tiny fullscreen
+kiosk app. It boots straight into the panel, recovers by itself, and needs no PC
+once it is installed.
 
-```
-┌  Kuala Selangor                        15:21 ┐
-│  IP 203.0.113.10 · Telekom Malaysia        │
-│ ▸ THUNDERSTORMS WARNING — until 18:00       │
-│                                              │
-│  ⛅ 29°C            7-DAY FORECAST            │
-│  Light drizzle      Today Sat Sun Mon …      │
-│  feels 35°C          32° 31° 32° 33°          │
-│  ┌────────┬────────┐  24° 24° 25° 24°         │
-│  │Humidity│ Wind   │  AM · PM · Nt           │
-│  └────────┴────────┘                          │
-│  updated 15:21 · ok      forecast: Kuala Selangor │
-└──────────────────────────────────────────────┘
-```
+![The kiosk running on a 1280x720 TV](docs/kiosk.png)
+
+MET Malaysia district forecast and warnings, RainViewer radar, a 60-minute rain
+outlook, air quality (IPU), current observations and a 7-day strip on one
+1280x720 screen.
+
+## What it needs
+
+- **At runtime:** the TV and an internet connection. No PC, no server, no
+  account to log into.
+- **Keyless core:** MET Malaysia forecast/warnings, Open-Meteo, NOAA METAR,
+  JAS/APIMS and RainViewer need no account at all.
+- **Three free-tier keys, optional:** Tomorrow.io feeds the 60-minute rain
+  outlook, OpenWeatherMap is a fallback current-conditions source, and CARTO
+  serves the dark basemap tiles. All are read at build time from the
+  environment or a git-ignored `keys.local.json`, proxied by the app shell, and
+  never written into the page or the repository — see
+  [API keys](#api-keys). Without them the dashboard still renders: the nowcast
+  line, OWM fallback or CARTO tiles are simply skipped.
+- **To build it:** a PC with Python and a JDK. No Android Studio, no Gradle.
 
 ## Where the data comes from
 
@@ -27,7 +34,7 @@ tiny fullscreen kiosk app. No cloud account, no API key, no PC needed at runtime
 | Current conditions | **METAR** (NOAA) → Open-Meteo → OpenWeatherMap | A fresh airport observation (< 110 min) wins by default; see `CONFIG.preferObservation`. |
 | 60-minute rain outlook | **Tomorrow.io** | 1-minute steps, proxied — the key never reaches the page. |
 | Radar | **RainViewer** | Latest frame from `api.rainviewer.com`, proxied same-origin. |
-| Basemap | **CARTO Dark Matter** → Esri → OSM | CARTO needs a key (in `CONFIG`-adjacent JS); Esri/OSM are keyless fallbacks. |
+| Basemap | **CARTO Dark Matter** → Esri → OSM | CARTO needs a free basemap key, proxied by the shell like the other keys; Esri/OSM are keyless fallbacks. |
 | Location | ISP lookup → district match | `ip-api` first, `ipinfo` fallback, then nearest MET district. |
 
 Observations come from `aviationweather.gov` (keyless). The old feed on
@@ -205,7 +212,7 @@ configured in `CONFIG`:
 <https://github.com/naga9bora/weather-tv-kiosk>
 
 Tracked: `static/`, `android/` (manifest, Java, icons), `data/`, `tools/`,
-`scripts/`, `app.py`, `native/`, `README.md`.
+`scripts/`, `docs/` (screenshots), `app.py`, `native/`, `README.md`.
 
 Not tracked (generated): `.sdk/`, `build/`, `dist/`, `android/assets/`,
 `cache/`, `__pycache__/`. Rebuild with:
@@ -217,11 +224,12 @@ python tools\build_apk.py      # dist/ + android/ -> dist/weather-kiosk.apk
 
 ### API keys
 
-No key is committed. Both are read from the environment (`TOMORROW_KEY`,
-`OWM_KEY`) or from `keys.local.json` in the project root (git-ignored):
+No key is committed and none appears in the page. All three are read from the
+environment (`TOMORROW_KEY`, `OWM_KEY`, `CARTO_KEY`) or from `keys.local.json`
+in the project root (git-ignored):
 
 ```json
-{ "tomorrow": "...", "owm": "..." }
+{ "tomorrow": "...", "owm": "...", "carto": "..." }
 ```
 
 `app.py` reads them at startup for local preview. `tools/build_apk.py` writes

@@ -61,7 +61,8 @@ def _load_keys():
             keys.update(_json.load(f))
     except (IOError, OSError, ValueError):
         pass
-    for env, name in (("TOMORROW_KEY", "tomorrow"), ("OWM_KEY", "owm")):
+    for env, name in (("TOMORROW_KEY", "tomorrow"), ("OWM_KEY", "owm"),
+                      ("CARTO_KEY", "carto")):
         if os.environ.get(env):
             keys[name] = os.environ[env]
     return keys
@@ -85,6 +86,10 @@ OWM_URLS = {
     "/api/owm/forecast": "https://api.openweathermap.org/data/2.5/forecast"
                          "?lat=%.4f&lon=%.4f&units=metric",
 }
+
+# CARTO Dark Matter basemap tiles. Anonymous tiles are stamped "API KEY
+# REQUIRED", so this key is proxied the same way and never appears in the page.
+CARTO_TILE_URL = "https://a.basemaps.cartocdn.com/%s/%d/%d/%d.png?key=%s"
 
 
 def lan_ips():
@@ -116,6 +121,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self.proxy_weather(path, self.path)
         if path.rstrip("/") in OWM_URLS:
             return self.proxy_weather(path, self.path)
+        if path.startswith("/api/basemap/"):
+            return self.proxy_basemap(path)
         if path.startswith("/api/rainviewer/"):
             return self.proxy_rainviewer(path, self.path)
         if path.startswith("/api/radar/"):
@@ -164,6 +171,49 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(body)
         except Exception as e:
             self.send_error(502, "rainviewer unavailable: %s" % e)
+
+    def proxy_basemap(self, path):
+        """CARTO basemap tiles: /api/basemap/[labels/]z/x/y.png.
+
+        The key lives in the environment or keys.local.json; the page never sees
+        it. Only the two styles the dashboard uses can be requested.
+        """
+        rest = path[len("/api/basemap/"):]
+        labels = rest.startswith("labels/")
+        if labels:
+            rest = rest[len("labels/"):]
+        if rest.endswith(".png"):
+            rest = rest[:-4]
+        parts = rest.split("/")
+        try:
+            if len(parts) != 3:
+                raise ValueError
+            z, x, y = (int(v) for v in parts)
+            span = 1 << z
+            if not (0 <= z <= 20 and 0 <= x < span and 0 <= y < span):
+                raise ValueError
+        except ValueError:
+            self.send_error(400, "bad tile")
+            return
+        key = KEYS.get("carto")
+        if not key:
+            self.send_error(503, "CARTO key not configured")
+            return
+        style = "dark_only_labels" if labels else "dark_nolabels"
+        url = CARTO_TILE_URL % (style, z, x, y, key)
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0",
+                                                       "Accept": "image/*"})
+            with urllib.request.urlopen(req, timeout=15) as r:
+                body = r.read()
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "public, max-age=86400")
+            self.end_headers()
+            self.wfile.write(body)
+        except Exception as e:
+            self.send_error(502, "tile unavailable: %s" % e)
 
     def proxy_weather(self, path, full):
         """Tomorrow.io minute nowcast, NOAA METAR and OpenWeatherMap, same-origin.

@@ -558,18 +558,17 @@ const RADAR_VIEW = {
 };
 let radarMap = null, radarBase = null, radarLabels = null, radarLayer = null, radarFramePath = null, radarRegionCur = null;
 
-/* Basemap candidates, most preferred first. CARTO Dark Matter needs the free
- * key below; without a valid key every tile comes back stamped "API KEY
- * REQUIRED", so a failed key/quota falls back to Esri's keyless Dark Gray
- * Canvas, and finally to plain OSM darkened by CSS. */
-const CARTO_KEY = "REDACTED_CARTO_KEY";
+/* Basemap candidates, most preferred first. CARTO Dark Matter needs a free
+ * basemap key; the shell proxies its tiles (/api/basemap/...) so no key sits in
+ * this file. A failed tile falls back to Esri's keyless Dark Gray Canvas, and
+ * finally to plain OSM darkened by CSS. */
 const RADAR_BASES = [
   {
     credit: "&copy; OpenStreetMap &middot; &copy; CARTO",
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
-    base: "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png?key=" + CARTO_KEY,
-    labels: "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png?key=" + CARTO_KEY,
-    subdomains: "abcd", maxZoom: 20
+    base: "/api/basemap/{z}/{x}/{y}.png",
+    labels: "/api/basemap/labels/{z}/{x}/{y}.png",
+    maxZoom: 20
   },
   {
     credit: "&copy; Esri &middot; OpenStreetMap",
