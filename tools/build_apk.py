@@ -51,7 +51,7 @@ def load_keys():
     keys = {}
     path = os.path.join(ROOT, "keys.local.json")
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8-sig") as f:
             keys.update(json.load(f))
     except (IOError, OSError, ValueError):
         pass

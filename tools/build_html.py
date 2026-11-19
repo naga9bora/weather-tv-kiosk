@@ -10,7 +10,8 @@ OUT = os.path.join(ROOT, "dist", "index.html")
 
 
 def main():
-    locs = json.load(open(os.path.join(ROOT, "data", "locations.json"), encoding="utf-8"))
+    # utf-8-sig: files edited with Notepad/PowerShell often start with a BOM.
+    locs = json.load(open(os.path.join(ROOT, "data", "locations.json"), encoding="utf-8-sig"))
 
     # Keep the payload small: id, name and coords only; drop unresolved entries.
     compact = [
@@ -57,7 +58,7 @@ def main():
     manual = "null"
     local = os.path.join(ROOT, "kiosk.local.json")
     try:
-        with open(local, encoding="utf-8") as f:
+        with open(local, encoding="utf-8-sig") as f:
             cfg = json.load(f)
         if cfg.get("manual"):
             manual = json.dumps(cfg["manual"], ensure_ascii=False, separators=(",", ":"))
