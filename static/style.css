@@ -1,6 +1,6 @@
 /* ------------------------------------------------------------------
    Dashboard styling.
-   Targets Chrome 74 (the WebView on the Android TV box), so:
+   Targets Chrome 74 (the Android TV box WebView), so:
      * no clamp() / min() / max()   (Chrome 79+)
      * no dvh / svh                (Chrome 108+)
      * no flex `gap`               (Chrome 84+)

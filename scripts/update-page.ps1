@@ -1,12 +1,14 @@
 # Push the freshly built page to the TV and reload the kiosk. No APK rebuild.
+# The device address is never stored here: pass -Device or set KIOSK_DEVICE.
 param(
     [string]$Adb = "C:\platform-tools\adb.exe",
-    [string]$Device = "192.0.2.10:5555",
+    [string]$Device = $env:KIOSK_DEVICE,
     [string]$Page = (Join-Path $PSScriptRoot "..\dist\index.html")
 )
 
 $ErrorActionPreference = "Stop"
 
+if (-not $Device) { throw "no device: pass -Device <ip:5555> or set `$env:KIOSK_DEVICE" }
 if (-not (Test-Path $Page)) { throw "$Page missing - run: python tools\build_html.py" }
 
 & $Adb connect $Device | Out-Null

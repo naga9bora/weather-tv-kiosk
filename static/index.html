@@ -254,11 +254,13 @@ const CONFIG = {
   //   lat/lon    : point used for the "current conditions" tile
   //   region     : state name, used to match MET advisories
   // Set to null to resolve from your ISP's IP geolocation instead.
+  // The repository ships null; put your own location in kiosk.local.json
+  // (git-ignored) and tools/build_html.py injects it at build time, so no home
+  // coordinates are ever committed.
   // **Note:** If LocalStorage contains "manualLat" and "manualLon", those values
   // will override this manual configuration, allowing end-users to set their
   // location via the "Set Location" dialog in the app without editing code.
-  manual: { locationId: "Ds058", lat: 3.1390, lon: 101.6869,
-            region: "Kuala Lumpur", note: "manual · city centre" },
+  manual: /*__MANUAL__*/null,
 
   // Weather source priority: Open-Meteo (1st) -> OpenWeatherMap (2nd) -> METAR Subang (3rd).
   // preferredModel: "auto" (priority chain above) | "openmeteo" | "openweathermap" | "metar"

@@ -1,11 +1,14 @@
 # Install / reinstall the kiosk on the TV and make it autostart.
+# The device address is never stored here: pass -Device or set KIOSK_DEVICE.
 param(
     [string]$Adb = "C:\platform-tools\adb.exe",
-    [string]$Device = "192.0.2.10:5555",
+    [string]$Device = $env:KIOSK_DEVICE,
     [string]$Apk = (Join-Path $PSScriptRoot "..\dist\weather-kiosk.apk")
 )
 
 $ErrorActionPreference = "Stop"
+
+if (-not $Device) { throw "no device: pass -Device <ip:5555> or set `$env:KIOSK_DEVICE" }
 
 & $Adb connect $Device | Out-Null
 $state = (& $Adb -s $Device get-state) 2>$null

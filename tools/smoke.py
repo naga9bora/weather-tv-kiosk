@@ -30,7 +30,7 @@ ADB_CANDIDATES = [
     os.environ.get("ADB"),
     os.environ.get("ANDROID_HOME") and os.path.join(os.environ["ANDROID_HOME"], "platform-tools", "adb.exe"),
     r"C:\platform-tools\adb.exe",
-    r"adb",
+    "/usr/bin/adb",
 ]
 
 PROBE = r"""(() => {
@@ -92,10 +92,13 @@ def adb(adb_path, device, *args, check=True):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--adb")
-    ap.add_argument("--device", default=os.environ.get("KIOSK_DEVICE", "192.0.2.10:5555"))
+    ap.add_argument("--device", default=os.environ.get("KIOSK_DEVICE"))
     ap.add_argument("--json", action="store_true", help="print raw probe values")
     ap.add_argument("--wait", type=int, default=0, help="seconds to wait for the page before probing")
     args = ap.parse_args()
+
+    if not args.device:
+        raise SystemExit("no device: pass --device <ip:5555> or set KIOSK_DEVICE")
 
     adb_path = find_adb(args.adb)
     adb(adb_path, args.device, "connect", args.device, check=False)

@@ -13,8 +13,10 @@ __pycache__/
 # local caches
 cache/
 
-# API keys (Tomorrow.io, OpenWeatherMap). Never commit; see README.
+# API keys (Tomorrow.io, OpenWeatherMap, CARTO) and the home location.
+# Never commit; see README.
 keys.local.json
+kiosk.local.json
 .env
 
 # generated icon/banner previews

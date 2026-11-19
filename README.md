@@ -62,14 +62,16 @@ Order of preference (`CONFIG.manual` in `static/index.html`):
    If granted, the nearest MET forecast district is used automatically.  
    If denied or unavailable, falls back to option 2.
 
-2. **Manual** — currently set to your home district:  
-   ```js
-   manual: { locationId: "Ds058", lat: 3.1390, lon: 101.6869,
-             region: "Kuala Lumpur", note: "manual · city centre" }
-   ```  
-   This is the recommended setting for a fixed home; use it if you don't want
-   the app to request location permission. Set it to `null` to fall back to
-   ISP geolocation.
+2. **Manual** — for a fixed display, put your district and coordinates in
+   `kiosk.local.json` (git-ignored); `tools/build_html.py` injects it into the
+   page at build time:
+   ```json
+   { "manual": { "locationId": "Ds054", "lat": 3.0, "lon": 101.4,
+                 "region": "Selangor", "note": "manual" } }
+   ```
+   The repository ships `manual: null`, so a fresh clone asks for GPS or falls
+   back to ISP geolocation. This is the recommended setting for a fixed home;
+   use it if you don't want the app to request location permission.
 
 3. **ISP geolocation** — public IP → lat/lon → nearest MET forecast district  
    (277 of the 440 districts have coordinates, from geoBoundaries ADM2).  
@@ -113,7 +115,9 @@ powershell -ExecutionPolicy Bypass -File .\scripts\uninstall.ps1
 ```
 
 (The `-ExecutionPolicy Bypass` flag is only needed if your shell blocks local
-scripts. `adb` is expected at `C:\platform-tools\adb.exe`; override with `-Adb`.)
+scripts. `adb` is expected at `C:\platform-tools\adb.exe`; override with `-Adb`.
+The device address is deliberately not stored: pass `-Device <ip:5555>` or set
+`$env:KIOSK_DEVICE` — `tools/smoke.py` reads the same variable.)
 
 ## How the kiosk works
 
@@ -214,8 +218,9 @@ configured in `CONFIG`:
 Tracked: `static/`, `android/` (manifest, Java, icons), `data/`, `tools/`,
 `scripts/`, `docs/` (screenshots), `app.py`, `native/`, `README.md`.
 
-Not tracked (generated): `.sdk/`, `build/`, `dist/`, `android/assets/`,
-`cache/`, `__pycache__/`. Rebuild with:
+Not tracked (generated or private): `.sdk/`, `build/`, `dist/`,
+`android/assets/`, `cache/`, `__pycache__/`, `keys.local.json`,
+`kiosk.local.json`. Rebuild with:
 
 ```powershell
 python tools\build_html.py     # static/ -> dist/index.html

@@ -48,6 +48,23 @@ def main():
     data = json.dumps(compact, ensure_ascii=False, separators=(",", ":"))
     html = tpl.replace(marker, data)
 
+    # Home location: kept out of the repository. kiosk.local.json (git-ignored)
+    # may contain {"manual": {"locationId": ..., "lat": ..., "lon": ...}};
+    # without it the page falls back to ISP/GPS resolution.
+    manual_marker = "/*__MANUAL__*/null"
+    if manual_marker not in html:
+        raise SystemExit(f"placeholder {manual_marker!r} not found in {TPL}")
+    manual = "null"
+    local = os.path.join(ROOT, "kiosk.local.json")
+    try:
+        with open(local, encoding="utf-8") as f:
+            cfg = json.load(f)
+        if cfg.get("manual"):
+            manual = json.dumps(cfg["manual"], ensure_ascii=False, separators=(",", ":"))
+    except (IOError, OSError, ValueError):
+        pass
+    html = html.replace(manual_marker, manual)
+
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8") as f:
         f.write(html)
