@@ -133,8 +133,14 @@ outside the viewport; run it after any layout change.
 - `docs/kiosk.png` must be captured with a generic on-screen location label
   (temporarily set the note to `manual - lokasi tetap`), then restore
   `kiosk.local.json`. A screenshot can leak what the code does not.
-- The repository is private. If it ever goes public, rotate all three keys
-  first; they exist in no commit after the history rewrite.
+- **The repository is public.** Treat every diff as published: no keys, no home
+  coordinates, no device address, no identifying screenshot. The keys were
+  scrubbed from all commits, but GitHub may still serve unreachable objects by
+  SHA until it garbage-collects — rotate the keys if you want certainty.
+- `app.py` listens on `127.0.0.1` by default and proxies the keys; only bind
+  `0.0.0.0` on a network you trust.
+- `build_apk.py --allow-keyless` builds without keys; the default still fails on
+  a missing key.
 
 ## Device / tooling gotchas
 

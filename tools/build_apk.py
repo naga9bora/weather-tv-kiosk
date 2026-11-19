@@ -81,6 +81,9 @@ def java_tool(name):
 
 
 def main():
+    # --allow-keyless: build without API keys (no nowcast, no CARTO basemap).
+    allow_keyless = "--allow-keyless" in sys.argv
+
     # --- unpack SDK if needed -------------------------------------------------
     for name, pattern in (("platform-29.zip", "android.jar"), ("build-tools-29.zip", "aapt2.exe")):
         src = os.path.join(SDK, name)
@@ -110,16 +113,21 @@ def main():
     # --- API keys -------------------------------------------------------------
     keys = load_keys()
     missing = [n for n in ("tomorrow", "owm", "carto") if not keys.get(n)]
-    if missing:
+    if missing and not allow_keyless:
         raise SystemExit(
             "missing API key(s): %s\n"
             "create keys.local.json in the project root:\n"
             '  {"tomorrow": "...", "owm": "...", "carto": "..."}\n'
-            "or set TOMORROW_KEY, OWM_KEY and CARTO_KEY in the environment."
+            "or set TOMORROW_KEY, OWM_KEY and CARTO_KEY in the environment.\n"
+            "or pass --allow-keyless to build a panel without them."
             % ", ".join(missing))
+    if missing:
+        print("warning: no API key(s) (%s) - keyless build; the 60-minute "
+              "outlook and CARTO basemap stay off, everything else works"
+              % ", ".join(missing))
     with open(os.path.join(assets, "keys.properties"), "w", encoding="utf-8") as f:
         for name in ("tomorrow", "owm", "carto"):
-            f.write("%s=%s\n" % (name, keys[name]))
+            f.write("%s=%s\n" % (name, keys.get(name, "")))
 
     res_dir = os.path.join(ANDROID, "res")
     compiled_res = os.path.join(BUILD, "res.zip")

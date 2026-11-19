@@ -220,7 +220,8 @@ Tracked: `static/`, `android/` (manifest, Java, icons), `data/`, `tools/`,
 
 `AGENTS.md` holds the working notes for coding agents: hard constraints, the
 build/deploy/verify loop, layout invariants and the secrets rules. Read it before
-editing the page.
+editing the page. `SECURITY.md` covers keys, what is git-ignored and how to
+report a vulnerability.
 
 Not tracked (generated or private): `.sdk/`, `build/`, `dist/`,
 `android/assets/`, `cache/`, `__pycache__/`, `keys.local.json`,
@@ -246,7 +247,11 @@ them into `android/assets/keys.properties`, which `MainActivity` loads, so the
 installed APK still has them while the repository and the page never do. A
 missing key fails the APK build with an explanation; on a running APK the
 affected proxy replies `503 Not Configured` and the kiosk just drops that panel
-element.
+element. `python tools\build_apk.py --allow-keyless` builds without them.
+
+`app.py` listens on `127.0.0.1` by default, because it proxies those keys.
+Pass `--host 0.0.0.0` only on a network you trust, to preview from the TV or a
+phone.
 
 ## Health check
 

@@ -388,7 +388,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=8080)
-    ap.add_argument("--host", default="0.0.0.0")
+    ap.add_argument("--host", default="127.0.0.1",
+                    help="listen address; pass 0.0.0.0 only for LAN/TV preview")
     args = ap.parse_args()
 
     if not os.path.exists(os.path.join(DIST, "index.html")):
@@ -398,8 +399,11 @@ def main():
     socketserver.TCPServer.allow_reuse_address = True
     with socketserver.ThreadingTCPServer((args.host, args.port), handler) as httpd:
         print(f"serving {DIST}")
-        for ip in lan_ips():
-            print(f"  http://{ip}:{args.port}")
+        # Only loopback by default: the proxy holds the API keys, so don't
+        # expose it to the network unless asked.
+        if args.host not in ("127.0.0.1", "localhost", "::1"):
+            for ip in lan_ips():
+                print(f"  http://{ip}:{args.port}")
         print(f"  http://localhost:{args.port}")
         try:
             httpd.serve_forever()
