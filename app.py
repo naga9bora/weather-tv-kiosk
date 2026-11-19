@@ -2,12 +2,13 @@
 
 Only the Python standard library is used, so it runs anywhere:
 
-    python app.py                # http://0.0.0.0:8080
+    python app.py                # http://127.0.0.1:8080
     python app.py --port 9000
 
-It serves dist/ (the built dashboard). The dashboard itself talks straight to
-api.data.gov.my / Open-Meteo, so this process does no proxying or caching - it
-just avoids the file:// restrictions inside Chrome on Android TV.
+It serves dist/ (the built dashboard). It binds loopback by default because it
+proxies the optional API keys; pass --host 0.0.0.0 only on a trusted LAN.
+The dashboard itself talks straight to api.data.gov.my / Open-Meteo, so this
+process only avoids the file:// restrictions inside Chrome on Android TV.
 
 It also proxies the Department of Environment's Air Pollutant Index feed
 (/api/haze -> https://eqms.doe.gov.my/api3/publicportalapims/mapcaqm) because the
