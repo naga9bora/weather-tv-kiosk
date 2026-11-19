@@ -250,7 +250,7 @@
    ===================================================================== */
 const CONFIG = {
   // Manual override. When set, ISP geolocation is skipped entirely.
-  //   locationId : MET forecast location id (see data/locations.json, e.g. "Ds054")
+  //   locationId : MET forecast location id (see data/locations.json, e.g. "Ds001")
   //   lat/lon    : point used for the "current conditions" tile
   //   region     : state name, used to match MET advisories
   // Set to null to resolve from your ISP's IP geolocation instead.
@@ -262,14 +262,26 @@ const CONFIG = {
   // location via the "Set Location" dialog in the app without editing code.
   manual: /*__MANUAL__*/null,
 
-  // Weather source priority: Open-Meteo (1st) -> OpenWeatherMap (2nd) -> METAR Subang (3rd).
+  // Optional METAR station ICAO id for the ground-truth fallback. The
+  // repository ships null: a fresh clone simply skips that fallback (the
+  // keyless Open-Meteo path still works). Put your nearest airport's id in
+  // kiosk.local.json (git-ignored); build_html.py injects it. No station list
+  // or location hint is stored in the repository.
+  metarStation: /*__METAR__*/null,
+
+  // Optional station-name fallback for air quality when coordinates are
+  // unavailable. The nearest station normally wins, so the repo ships "".
+  hazeStation: /*__HAZE__*/"",
+
+  // Weather source priority: Open-Meteo (1st) -> OpenWeatherMap (2nd) ->
+  // a configured METAR station (3rd).
   // preferredModel: "auto" (priority chain above) | "openmeteo" | "openweathermap" | "metar"
   // Set a specific model to pin to one source regardless of priority.
   preferredModel: "auto",
 
   // Prefer a fresh airport observation (real METAR) over the model for the big
-  // current-conditions tile. Models run 2-3 C cold under KL's afternoon cloud
-  // and invent drizzle the airport is not reporting; an observation within
+  // current-conditions tile. Models run 2-3 C cold under tropical afternoon
+  // cloud and invent drizzle the airport is not reporting; an observation within
   // ~110 min is still better ground truth than a wrong model value.
   // Set false to always show the model value.
   preferObservation: true,
@@ -340,7 +352,7 @@ const dateFromYmd = ymd => new Date(ymd + "T12:00:00");
 const dayShort = ymd => DAY_SHORT[dateFromYmd(ymd).getDay()];
 const dateShort = ymd => { const d = dateFromYmd(ymd); return pad(d.getDate()) + " " + MONTH_SHORT[d.getMonth()]; };
 const dateTimeShort = t => { const d = dateFromYmd(ymdTZ(t)); return pad(d.getDate()) + " " + MONTH_SHORT[d.getMonth()] + ", " + clockHM(t); };
-const HAZE_STATION = "Kuala Lumpur";
+const HAZE_STATION = CONFIG.hazeStation;
 const HAZE_URL = "/api/haze";   // same origin — served locally by the kiosk app
 const HAZE_BANDS = ["Baik", "Sederhana", "Tidak Sihat", "Sangat Tidak Sihat", "Berbahaya"];
 const HAZE_COLORS = ["#4F8EF7", "#3FB77F", "#F2C94C", "#F2994A", "#E5484D"];
@@ -762,7 +774,9 @@ async function resolveLocation() {
   }
 
   if (!isp) {
-    const def = LOCATIONS.find(l => l.id === "Ds054") || LOCATIONS[0];
+    // No network at all: any district from the public table will do, so the
+    // panel still renders. Don't hard-code one person's home district.
+    const def = LOCATIONS.find(l => l.lat != null) || LOCATIONS[0];
     return { locationId: def.id, name: def.name, lat: def.lat, lon: def.lon, via: "fallback (ISP lookup failed)" };
   }
 
@@ -855,18 +869,14 @@ async function fetchMetForecast(loc) {
 
 /* ---- current conditions -------------------------------------------------
    Preference order:
-     1. a real METAR observation from the nearest MET airport station
-        (Subang WMSA, or KLIA WMKK) - this is what "no rain here" looks like;
+     1. a real METAR observation from the station configured in kiosk.local.json
+        (an ICAO id; the repository ships none) - this is "no rain here";
      2. otherwise an Open-Meteo model estimate, clearly labelled as such.
 
-   A single model blend is unreliable in convective weather: on 2026-10-30 the
-   default blend claimed 0.7 mm of showers over Kuala Lumpur while Subang was
-   reporting 33 C, 10 km visibility and no rain at all.
+   A single model blend is unreliable in convective weather: it can claim
+   showers while the nearest airport reports 33 C, 10 km visibility and no
+   rain at all. A fresh observation is better ground truth.
    ---------------------------------------------------------------------- */
-const METAR_STATIONS = [
-  { id: "WMSA", name: "Subang", lat: 3.1306, lon: 101.5493 },
-  { id: "WMKK", name: "KLIA",   lat: 2.7456, lon: 101.7099 }
-];
 
 const WX_TOKEN = /^[-+]?(VC)?(TS|SH|RA|DZ|GR|GS|SN|BR|HZ|FG|FU|DU|SA|SQ|PO|FC|SS|DS|PL|IC|UP)+$/;
 const CLOUD_LABEL = { FEW: "Sedikit", SCT: "Tersebar", BKN: "Pecah", OVC: "Mendung" };
@@ -909,21 +919,16 @@ function parseMetars(text) {
 }
 
 async function fetchObservation(loc) {
-  if (loc.lat == null || loc.lon == null) return null;
-  const near = METAR_STATIONS
-    .map(s => ({ ...s, km: haversine(loc.lat, loc.lon, s.lat, s.lon) }))
-    .sort((a, b) => a.km - b.km);
-  const r = await fetch("/api/metar?ids=" + near.map(s => s.id).join(","),
+  const id = CONFIG.metarStation;
+  if (!id || loc.lat == null || loc.lon == null) return null;
+  const r = await fetch("/api/metar?ids=" + encodeURIComponent(id),
                         { cache: "no-store" });
   if (!r.ok) throw new Error("METAR HTTP " + r.status);
   const obs = parseMetars(await r.text());
-  for (const s of near) {
-    const o = obs[s.id];
-    if (!o) continue;
-    if ((Date.now() - o.time) / 60000 > 150) continue;   // stale report
-    return { ...o, station: s.name, km: Math.round(s.km) };
-  }
-  return null;
+  const o = obs[id];
+  if (!o) return null;
+  if ((Date.now() - o.time) / 60000 > 150) return null;   // stale report
+  return { ...o, station: "stesen METAR", km: null };
 }
 
 function clockHM(t) {
@@ -1029,7 +1034,7 @@ function popNextHours(hourly, nowIso, hours) {
   } catch (e) { return null; }
 }
 
-/* OpenWeatherMap current conditions - more local than Subang METAR */
+/* OpenWeatherMap current conditions - closer than a distant METAR station */
 const OWM_TO_ICON = {
   200: "storm", 201: "storm", 202: "storm", 210: "storm", 211: "storm", 212: "storm", 221: "storm", 230: "storm", 231: "storm", 232: "storm",
   300: "rain", 301: "rain", 302: "rain", 310: "rain", 311: "rain", 312: "rain", 313: "rain", 314: "rain", 321: "rain",
@@ -1216,7 +1221,7 @@ const MODEL_LABEL = { auto: "auto", openmeteo: "open-meteo", openweathermap: "op
 function renderNow(loc, cur, owm, obs, omFallback) {
   $("placeName").textContent = loc.name;
 
-  /* Fallback chain: Open-Meteo (1st) -> OpenWeatherMap (2nd) -> METAR Subang (3rd) */
+  /* Fallback chain: Open-Meteo (1st) -> OpenWeatherMap (2nd) -> configured METAR (3rd) */
   const sourceLabel = cur ? "Open-Meteo" : (owm ? "OpenWeatherMap" : (obs ? obs.station + " · cerapan" : ""));
   const sourceKm = obs && !cur && !owm ? obs.km : null;
   const modelBtn = '<button type="button" class="badge model-btn" id="modelBadge" title="Sumber model cuaca — tekan untuk tukar">model: ' + escapeHtml(MODEL_LABEL[currentModel()] || "auto") + '</button>';
@@ -1288,7 +1293,7 @@ function renderNow(loc, cur, owm, obs, omFallback) {
     return;
   }
 
-  /* ---- Priority 3: METAR observation at Subang (18 km away) ---- */
+  /* ---- Priority 3: METAR observation from the configured station ---- */
   if (obs) {
     const obsRain = obs ? /(RA|SH|DZ|GR|GS|PL)/.test(obs.wx.join(" ")) : null;
     const hour = Number(new Date(obs.time).toLocaleString("en-GB", {

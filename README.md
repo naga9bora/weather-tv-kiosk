@@ -77,7 +77,19 @@ Order of preference (`CONFIG.manual` in `static/index.html`):
    (277 of the 440 districts have coordinates, from geoBoundaries ADM2).  
    Useful when GPS is denied or the device has no GPS hardware.
 
-4. **Fallback** — Klang (Ds054) if the network is unreachable.
+4. **Fallback** — the first district with coordinates in `data/locations.json`
+   if even the network is down, so the panel still renders.
+
+The private `kiosk.local.json` can also carry optional `metar` (an ICAO id for
+the ground-truth fallback) and `hazeStation` (a station-name fallback for air
+quality). The repository ships `null` / `""` for both; a fresh clone simply
+skips those fallbacks. Example:
+
+```json
+{ "manual": { "locationId": "Ds054", "lat": 3.0, "lon": 101.4,
+              "region": "Selangor", "note": "manual" },
+  "metar": "EGLL", "hazeStation": "" }
+```
 
 Find ids in `data/locations.json`, or run `python tools/find_location.py kuala`.
 

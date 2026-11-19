@@ -49,22 +49,34 @@ def main():
     data = json.dumps(compact, ensure_ascii=False, separators=(",", ":"))
     html = tpl.replace(marker, data)
 
-    # Home location: kept out of the repository. kiosk.local.json (git-ignored)
-    # may contain {"manual": {"locationId": ..., "lat": ..., "lon": ...}};
-    # without it the page falls back to ISP/GPS resolution.
-    manual_marker = "/*__MANUAL__*/null"
-    if manual_marker not in html:
-        raise SystemExit(f"placeholder {manual_marker!r} not found in {TPL}")
-    manual = "null"
+    # Private settings: kept out of the repository. kiosk.local.json may contain
+    # {"manual": {...}, "metar": "EGLL", "hazeStation": "..."}; without it the
+    # page falls back to ISP/GPS, skips the METAR station and picks the nearest
+    # air-quality station by coordinates.
+    placeholders = {
+        "/*__MANUAL__*/null": "manual",
+        "/*__METAR__*/null": "metar",
+        '/*__HAZE__*/""': "hazeStation",
+    }
+    for marker, key in placeholders.items():
+        if marker not in html:
+            raise SystemExit(f"placeholder {marker!r} not found in {TPL}")
     local = os.path.join(ROOT, "kiosk.local.json")
+    cfg = {}
     try:
         with open(local, encoding="utf-8-sig") as f:
             cfg = json.load(f)
-        if cfg.get("manual"):
-            manual = json.dumps(cfg["manual"], ensure_ascii=False, separators=(",", ":"))
     except (IOError, OSError, ValueError):
         pass
-    html = html.replace(manual_marker, manual)
+    for marker, key in placeholders.items():
+        value = cfg.get(key)
+        if key == "hazeStation":
+            injected = json.dumps(value or "", ensure_ascii=False)
+        elif value:
+            injected = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+        else:
+            injected = "null"
+        html = html.replace(marker, injected)
 
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8") as f:

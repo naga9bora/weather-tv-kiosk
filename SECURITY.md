@@ -9,8 +9,10 @@ CARTO) are **never committed**. They live in `keys.local.json` (git-ignored) or
 the environment, and are injected at build time into the APK only.
 
 `keys.local.json`, `kiosk.local.json`, `.env`, `dist/`, `android/assets/`,
-`.sdk/`, `build/` and `cache/` are git-ignored. If you build from source, keep
-your own keys and home coordinates out of commits.
+`.sdk/`, `build/` and `cache/` are git-ignored. `kiosk.local.json` also holds
+the home location, the METAR station id and the air-quality station fallback;
+the shipped page has none of them. If you build from source, keep your own keys
+and home coordinates out of commits.
 
 ## Reporting a vulnerability
 

@@ -114,10 +114,12 @@ outside the viewport; run it after any layout change.
   git-ignored. Environment variables `TOMORROW_KEY`, `OWM_KEY`, `CARTO_KEY`
   override it. A missing key fails `build_apk.py` on purpose; a running APK
   answers `503 Not Configured` for that proxy.
-- `kiosk.local.json` = `{"manual": {"locationId": "...", "lat": ..., "lon": ...,
-  "region": "...", "note": "..."}}`, git-ignored. It is injected into
-  `CONFIG.manual` by `build_html.py`; the repo ships `manual: null` (ISP/GPS
-  fallback). Never commit home coordinates, a building name or a device address.
+- `kiosk.local.json` = `{"manual": {...}, "metar": "...", "hazeStation": "..."}`,
+  git-ignored. `build_html.py` injects all three; the repo ships `manual: null`,
+  `metarStation: null`, `hazeStation: ""`. Without them the page resolves from
+  GPS/ISP, skips the METAR fallback and picks the nearest air-quality station.
+  Never commit home coordinates, a station id, a building name or a device
+  address. The page shows "stesen METAR", never the configured station name.
 - Read local JSON with `utf-8-sig`: Notepad and PowerShell add a BOM, and plain
   `utf-8` silently returns nothing.
 - Before committing, scan the staged tree (review anything it prints):
