@@ -1,0 +1,17 @@
+# Android SDK pieces used only to build the APK
+.sdk/
+build/
+
+# build outputs (rebuild with tools/build_html.py + tools/build_apk.py)
+dist/
+android/assets/
+
+# python
+__pycache__/
+*.pyc
+
+# local caches
+cache/
+
+# generated icon/banner previews
+*.apk

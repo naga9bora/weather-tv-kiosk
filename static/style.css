@@ -1,0 +1,482 @@
+/* ------------------------------------------------------------------
+   Dashboard styling.
+   Targets Chrome 74 (the WebView on the Android TV box), so:
+     * no clamp() / min() / max()   (Chrome 79+)
+     * no dvh / svh                (Chrome 108+)
+     * no flex `gap`               (Chrome 84+)
+     * no `inset` shorthand        (Chrome 87+)
+   Vertical rhythm is driven by --vh, set from window.innerHeight in JS.
+   ------------------------------------------------------------------ */
+
+:root {
+  --vh: 720px;
+  --bg0: #06070d;
+  --bg1: #0f1220;
+  --card: rgba(255,255,255,.045);
+  --line: rgba(255,255,255,.10);
+  --fg: #f2f5ff;
+  --dim: #8e97b3;
+  --accent: #6ec3ff;
+  --ok: #58d68d;
+  --warn: #ffc93c;
+  --bad: #ff6b6b;
+  --radius: 18px;
+  --pad-x: 30px;
+  --pad-y: calc(var(--vh) * 0.028);
+  --res-margin: 4px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background:
+    radial-gradient(1200px 700px at 82% -10%, rgba(110,195,255,.10), transparent 60%),
+    radial-gradient(900px 600px at 8% 110%, rgba(140,120,255,.10), transparent 60%),
+    linear-gradient(160deg, var(--bg1), var(--bg0) 70%);
+  color: var(--fg);
+  font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Flex column, not grid rows: when #warn is hidden the item count changes, and
+   grid auto-placement would shift main/footer into the wrong tracks. */
+#app {
+  height: var(--vh);
+  display: flex;
+  flex-direction: column;
+  padding: var(--pad-y) var(--pad-x);
+  /* Burn-in drift: JS nudges these two vars every half hour. */
+  transform: translate(var(--shift-x, 0px), var(--shift-y, 0px));
+}
+#app > header { flex: none; transition: opacity 1s ease; }
+/* Hourly burn-in blanking of the static chrome (see CONFIG.burnIn). */
+#app.hdr-off > header { opacity: 0; }
+/* Night dimming overlay, driven by CONFIG.nightDim. Never intercepts input. */
+#dim {
+  position: fixed; top: 0; right: 0; bottom: 0; left: 0;
+  background: #000; opacity: 0;
+  pointer-events: none; z-index: 9999;
+  transition: opacity 4s ease;
+}
+
+/* ---------------- header ---------------- */
+header {
+  display: flex; align-items: flex-start;
+  justify-content: space-between;
+}
+.place h1 {
+  font-size: calc(var(--vh) * 0.042);
+  font-weight: 650; letter-spacing: -.01em; line-height: 1.12;
+}
+.place .meta {
+  margin-top: .42em;
+  font-size: calc(var(--vh) * 0.019);
+  color: var(--dim);
+  display: flex; align-items: center; flex-wrap: wrap;
+}
+.place .meta > * { margin-right: .55em; }
+.place .meta .metaSep {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 1.25em; line-height: 1; color: var(--dim);
+  opacity: .7; margin-right: .55em; position: relative; top: .03em;
+}
+.dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--dim); display: inline-block; flex: none;
+}
+.clock { text-align: right; }
+.clock .time {
+  font-size: calc(var(--vh) * 0.053);
+  font-weight: 600; font-variant-numeric: tabular-nums;
+  letter-spacing: -.02em; line-height: 1;
+}
+.clock .date {
+  font-size: calc(var(--vh) * 0.019);
+  color: var(--dim); margin-top: .5em;
+}
+
+/* ---------------- warning ---------------- */
+#warn {
+  display: none; align-items: center; flex: none;
+  background: linear-gradient(90deg, rgba(255,201,60,.16), rgba(255,201,60,.05));
+  border: 1px solid rgba(255,201,60,.35); border-radius: 12px;
+  padding: .5em .85em;
+  font-size: calc(var(--vh) * 0.020);
+}
+/* display:none removes the box entirely, so main moves up with no gap. */
+#warn.show { display: flex; margin-top: calc(var(--vh) * 0.012); }
+#warn .tag {
+  flex: none; margin-right: .8em;
+  font-weight: 700; font-size: .82em; letter-spacing: .08em; text-transform: uppercase;
+  color: #1a1400; background: var(--warn); border-radius: 6px; padding: .22em .55em;
+}
+#warn .txt {
+  color: #ffe9a8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ---------------- main ---------------- */
+main {
+  flex: 1 1 auto;
+  margin-top: calc(var(--vh) * 0.012);
+  display: flex; flex-direction: row;
+  min-height: 0;
+}
+.left-col {
+  display: flex; flex-direction: column;
+  flex: 0 0 42%; min-width: 0;
+  margin-right: calc(var(--vh) * 0.022);
+}
+#fc {
+  flex: 1 1 auto; min-width: 0;
+}
+.right-col {
+  display: flex; flex-direction: column;
+  flex: 1 1 0; min-width: 0; min-height: 0;
+}
+/* Radar card: live Leaflet map with RainViewer precipitation tiles.
+   Hidden until a radar frame is ready (JS switches it to flex). */
+#radar {
+  flex: none;
+  display: none;
+  flex-direction: column;
+  padding: calc(var(--vh) * 0.020);
+  margin-bottom: calc(var(--vh) * 0.012);
+}
+#radar .radarHead { flex: none; }
+#radar .radarHead h2 {
+  font-size: calc(var(--vh) * 0.026);
+  font-weight: 650; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--fg); line-height: 1.15;
+}
+#radar .radarHead .src {
+  display: block;
+  font-size: calc(var(--vh) * 0.016);
+  color: var(--dim);
+  margin-top: calc(var(--vh) * 0.003);
+}
+#radar .radarBody {
+  position: relative;
+  margin-top: calc(var(--vh) * 0.010);
+  height: calc(var(--vh) * 0.285);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #04060c;
+}
+#radar .radarMap {
+  position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+  width: 100%; height: 100%;
+  background: #04060c;
+}
+/* Keep Leaflet chrome unobtrusive on a lobby display. */
+#radar .leaflet-control-attribution {
+  background: rgba(5, 7, 10, 0.55);
+  color: rgba(231, 238, 252, 0.55);
+  font-size: calc(var(--vh) * 0.012);
+  line-height: 1.2;
+  padding: 0 4px;
+}
+#radar .leaflet-control-attribution a { color: rgba(231, 238, 252, 0.7); }
+/* Esri's reference layer is dark text on transparency (made for light maps);
+   invert it so place names read on the dark basemap. */
+#radar .radarLabels { filter: invert(1) brightness(1.35); opacity: .8; }
+/* Last-resort OSM fallback: keep the card dark. */
+#radar .osmDark { filter: invert(1) hue-rotate(180deg) brightness(.82) contrast(.92); }
+#radar .radarFoot {
+  flex: none;
+  margin-top: calc(var(--vh) * 0.008);
+  font-size: calc(var(--vh) * 0.0155);
+  line-height: 1.45;
+  color: var(--dim);
+}
+#radar .radarFoot #radarUpdated {
+  display: inline;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+/* Rain outlook from Tomorrow.io sits on the same line, so the card can never
+   grow — the forecast below it has a tight height budget. */
+#radar .radarFoot #radarNow {
+  color: var(--fg);
+  opacity: .82;
+}
+#radar .radarFoot #radarNow:not(:empty)::before {
+  content: " · ";
+  color: var(--dim);
+  opacity: .8;
+}
+#radar .radarFoot .radarAttrib {
+  display: block;
+  font-size: calc(var(--vh) * 0.0145);
+  color: var(--dim);
+  opacity: .75;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  position: relative; overflow: hidden; min-height: 0;
+}
+
+/* current conditions */
+#now {
+  padding: calc(var(--vh) * 0.028) calc(var(--vh) * 0.030);
+  display: flex; flex-direction: column;
+  /* keep the top section at its designed height so the 7-day strip ends
+     level with the current-conditions card */
+  min-height: calc(var(--vh) * 0.489);
+}
+#now .condRow { display: flex; align-items: center; }
+#now .condRow > * { margin-right: calc(var(--vh) * 0.024); }
+#now .condRow > *:last-child { margin-right: 0; }
+
+.icon { width: calc(var(--vh) * 0.095); height: calc(var(--vh) * 0.095); flex: none; }
+.icon svg { width: 100%; height: 100%; display: block; }
+
+.temp {
+  font-size: calc(var(--vh) * 0.118);
+  font-weight: 200; line-height: .9; letter-spacing: -.04em;
+  font-variant-numeric: tabular-nums;
+}
+.temp sup { font-size: .36em; font-weight: 300; vertical-align: super; letter-spacing: 0; }
+.cond { font-size: calc(var(--vh) * 0.026); font-weight: 550; margin-top: .3em; }
+.cond small {
+  display: block; color: var(--dim); font-weight: 400;
+  font-size: .74em; margin-top: .25em;
+}
+
+.stats {
+  margin-top: auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-column-gap: calc(var(--vh) * 0.016);
+  grid-row-gap: calc(var(--vh) * 0.011);
+}
+.stat {
+  background: rgba(255,255,255,.035);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: .38em .6em;
+}
+/* Explicit line-heights: "normal" is font-dependent, and on Segoe (PC preview)
+   it made the stats 6 px taller per row than Roboto on the TV, which squeezed
+   the air-quality card below its content height. */
+.stat .k {
+  font-size: calc(var(--vh) * 0.017);
+  line-height: 1.15;
+  color: var(--dim); text-transform: uppercase; letter-spacing: .07em;
+}
+.stat .v {
+  font-size: calc(var(--vh) * 0.027);
+  line-height: 1.15;
+  font-weight: 600; margin-top: .12em; font-variant-numeric: tabular-nums;
+}
+.stat .v span { font-size: .68em; weight: 400; color: var(--dim); }
+
+/* ---------------- air quality (JAS / APIMS) card ---------------- */
+#haze {
+  padding: calc(var(--vh) * 0.028) calc(var(--vh) * 0.030);
+  display: flex; flex-direction: column; min-height: 0;
+  flex: 1;
+  margin-top: calc(var(--vh) * 0.016);
+}
+.hazeHead {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: calc(var(--vh) * 0.005);
+}
+.hazeHeadLabel {
+  font-size: calc(var(--vh) * 0.017);
+  color: var(--dim); text-transform: uppercase;
+  letter-spacing: .08em; font-weight: 600; flex: none;
+}
+#haze .hazeVal {
+  display: flex; align-items: center; margin-bottom: calc(var(--vh) * 0.008);
+}
+#hazeApi {
+  font-size: calc(var(--vh) * 0.105);
+  font-weight: 200; font-variant-numeric: tabular-nums;
+  line-height: .9; letter-spacing: -.03em; margin-right: 12px;
+}
+.hazeBand {
+  font-size: calc(var(--vh) * 0.026);
+  font-weight: 650; padding: .2em .65em;
+  border-radius: 999px; border: 1px solid currentColor;
+  color: currentColor; background: rgba(255,255,255,.06);
+}
+.hazeBar { margin-top: calc(var(--vh) * 0.006); margin-bottom: calc(var(--vh) * 0.006); position: relative; }
+.hazeTrack {
+  height: 4px; border-radius: 2px;
+  background: linear-gradient(to right,
+    #4F8EF7 0%, #4F8EF7 16.6%,
+    #3FB77F 16.6%, #3FB77F 33.3%,
+    #F2C94C 33.3%, #F2C94C 50%,
+    #F2994A 50%, #F2994A 66.6%,
+    #E5484D 66.6%, #E5484D 100%);
+  position: relative; overflow: hidden;
+}
+.hazeMarker {
+  width: 8px; height: 14px; border-radius: 4px;
+  background: #fff;
+  border: 1px solid rgba(0,0,0,.2);
+  box-shadow: 0 1px 3px rgba(0,0,0,.35);
+  position: absolute; top: 50%; transform: translate(-50%, -50%);
+  z-index: 2;
+}
+.hazeTicks {
+  display: flex; justify-content: space-between;
+  font-size: calc(var(--vh) * 0.014);
+  color: var(--dim); margin-top: calc(var(--vh) * 0.004);
+  letter-spacing: .04em;
+}
+.hazeDesc {
+  font-size: calc(var(--vh) * 0.020);
+  color: var(--dim); margin-top: auto; line-height: 1.4;
+  background: rgba(255,255,255,.035);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: .55em .8em;
+}
+
+/* forecast strip */
+#fc { padding: calc(var(--vh) * 0.020); display: flex; flex-direction: column; min-height: 0; }
+.fcHead {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: 0 .25em calc(var(--vh) * 0.012);
+}
+.fcHead h2 {
+  font-size: calc(var(--vh) * 0.018);
+  font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--dim);
+}
+.fcHead .src { font-size: calc(var(--vh) * 0.016); color: var(--dim); opacity: .8; }
+
+.days {
+  display: flex;
+  flex: 0 0 calc(var(--vh) * 0.436); min-height: 0;
+}
+/* With the radar above it the forecast column is shorter: the day cards keep
+   the day/date/icon/temps and grow into the free height. The per-day rain rows
+   and the 12-hour row come back when the radar is unavailable. */
+body.has-radar .days { flex: 1 1 auto; min-height: 0; }
+body.has-radar .day { justify-content: center; }
+body.has-radar .day .periods { display: none; }
+body.has-radar .hourly { display: none; }
+.day {
+  flex: 1 1 0;
+  display: flex; flex-direction: column; align-items: center;
+  background: rgba(255,255,255,.03);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: calc(var(--vh) * 0.016) 4px;
+  min-width: 0;
+}
+.day + .day { margin-left: calc(var(--vh) * 0.012); }
+.day.today { background: rgba(110,195,255,.10); border-color: rgba(110,195,255,.42); }
+.day .dow { font-size: calc(var(--vh) * 0.020); font-weight: 650; letter-spacing: .02em; }
+.day .dnum { font-size: calc(var(--vh) * 0.0165); color: var(--dim); margin-top: .1em; }
+.day .icon {
+  width: calc(var(--vh) * 0.058); height: calc(var(--vh) * 0.058);
+  margin: calc(var(--vh) * 0.020) 0;
+}
+.day .tmax { font-size: calc(var(--vh) * 0.030); font-weight: 600; font-variant-numeric: tabular-nums; }
+.day .tmin {
+  font-size: calc(var(--vh) * 0.020); color: var(--dim);
+  font-variant-numeric: tabular-nums; margin-top: .05em;
+}
+.day .periods {
+  margin-top: auto; width: 100%;
+  display: flex; flex-direction: column;
+  padding: 0 6px;
+}
+.prow {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: calc(var(--vh) * 0.015);
+  color: var(--dim);
+  padding: 2px 0;
+}
+.prow .pl { text-transform: uppercase; letter-spacing: .06em; opacity: .75; }
+.pdot { width: 7px; height: 7px; border-radius: 50%; flex: none; margin-left: 4px; }
+
+/* ---------------- footer ---------------- */
+footer {
+  flex: none;
+  margin-top: calc(var(--vh) * 0.012);
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: calc(var(--vh) * 0.018);
+  color: var(--dim);
+}
+footer .l { display: flex; align-items: center; flex-wrap: wrap; }
+footer .l > * { margin-right: .6em; }
+.badge { border: 1px solid var(--line); border-radius: 999px; padding: .18em .6em; }
+.badge.stale { border-color: rgba(255,107,107,.5); color: #ffb3b3; }
+/* Data age: amber past 20 min, red past 45 min (see paintStaleness). */
+#status.aging { color: var(--warn); }
+#status.err { color: var(--bad); }
+button.model-btn {
+  font: inherit; cursor: pointer; color: var(--accent);
+  background: rgba(110,195,255,.12); border: 1px solid rgba(110,195,255,.45);
+  border-radius: 999px; padding: .18em .65em; transition: background .2s ease;
+}
+button.model-btn:hover, button.model-btn:focus {
+  background: rgba(110,195,255,.25);
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+#status.ok { color: var(--ok); }
+#status.err { color: var(--bad); }
+
+/* ---------------- boot overlay ---------------- */
+#boot {
+  position: fixed; top: 0; right: 0; bottom: 0; left: 0;
+  display: flex; align-items: center; justify-content: center; flex-direction: column;
+  background: var(--bg0); z-index: 20;
+  font-size: calc(var(--vh) * 0.022);
+  color: var(--dim);
+  transition: opacity .5s ease;
+}
+#boot.hide { opacity: 0; pointer-events: none; }
+#boot .spin {
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 3px solid rgba(255,255,255,.12); border-top-color: var(--accent);
+  animation: sp 1s linear infinite; margin-bottom: 14px;
+}
+@keyframes sp { to { transform: rotate(360deg); } }
+#boot .err { color: var(--bad); max-width: 70ch; text-align: center; line-height: 1.5; }
+
+/* hourly forecast strip */
+#fc { overflow-y: auto; }
+.hourly { margin-top: calc(var(--vh) * 0.015); flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.hourlyHeader { display: flex; align-items: baseline; justify-content: space-between; padding: 0 .25em calc(var(--vh) * 0.012); }
+.hourlyHeader h2 { font-size: calc(var(--vh) * 0.022); font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+.hourlyHeader .sub { font-size: calc(var(--vh) * 0.014); color: var(--dim); opacity: .8; }
+.hourlyGrid { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: calc(var(--vh) * 0.006); flex: 1; min-height: 0; overflow-x: auto; }
+.hourlyItem {
+  display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+  background: rgba(255,255,255,.03); border: 1px solid var(--line);
+  border-radius: 14px; padding: calc(var(--vh) * 0.010) 2px; min-width: 0;
+  transition: background .2s, color .2s;
+  margin-bottom: .1em; overflow: hidden; text-align: center;
+}
+.hourlyItem:hover { background: rgba(255,255,255,.07); }
+.hourlyItem.active { background: rgba(110,195,255,.12); border-color: var(--accent); }
+.hourlyItem .hourTime { display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hourlyItem .hourTime .hh { font-size: calc(var(--vh) * 0.028); font-weight: 650; color: var(--fg); }
+.hourlyItem .hourTime .ap { font-size: calc(var(--vh) * 0.012); font-weight: 600; letter-spacing: .06em; color: var(--dim); margin-top: calc(var(--vh) * 0.002); }
+.hourlyItem .hourIcon { width: calc(var(--vh) * 0.052); height: calc(var(--vh) * 0.052); }
+.hourlyItem .hourTemp { font-size: calc(var(--vh) * 0.034); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--accent); white-space: nowrap; }
+.hourlyItem .hourDesc { font-size: calc(var(--vh) * 0.013); color: var(--dim); letter-spacing: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.hourlyItem .hourRain { font-size: calc(var(--vh) * 0.016); color: var(--accent); min-height: 1.2em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.hourlyItem .hourRain.dry { color: var(--dim); opacity: .55; }
+.hourlyItem .hourCloudBar { width: 100%; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.hourlyItem .hourCloudFill { height: 100%; background: var(--accent); border-radius: 2px; transition: width .3s ease; }
+
+/* Resolution adapters */
+.resolution-sd *.hourlyItem .hourTime { font-size: calc(var(--vh) * 0.018); }
+.resolution-sd *.hourlyItem .hourIcon { width: calc(var(--vh) * 0.04); height: calc(var(--vh) * 0.04); }
+.resolution-sd *.hourlyItem .hourTemp { font-size: calc(var(--vh) * 0.028); }
+.resolution-sd *.hourlyItem .hourDesc { font-size: calc(var(--vh) * 0.014); }
+.resolution-sd *.hourlyItem .hourRain { font-size: calc(var(--vh) * 0.014); }
+
+.resolution-small *.hourlyItem .hourTime { font-size: calc(var(--vh) * 0.014); }
+.resolution-small *.hourlyItem .hourIcon { width: calc(var(--vh) * 0.03); height: calc(var(--vh) * 0.03); }
+.resolution-small *.hourlyItem .hourTemp { font-size: calc(var(--vh) * 0.022); }
+.resolution-small *.hourlyItem .hourDesc { font-size: calc(var(--vh) * 0.01); }
+.resolution-small *.hourlyItem .hourRain { font-size: calc(var(--vh) * 0.01); }

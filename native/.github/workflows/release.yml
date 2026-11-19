@@ -1,0 +1,70 @@
+name: Release
+
+# Push a tag like v1.0 and this builds the native weather kiosk APK, signs it with the project's own
+# key (the RELEASE_* secrets, made once with tools/make-release-key.sh) and publishes it on the
+# Releases page with its SHA-256 and signing certificate, so anyone can check the file they install.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    name: Signed APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platforms;android-34 build-tools;34.0.0
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Signing key
+        env:
+          RELEASE_KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
+        run: |
+          test -n "$RELEASE_KEYSTORE_B64" || { echo "Missing secret RELEASE_KEYSTORE_B64: see README.md, Publishing."; exit 1; }
+          echo "$RELEASE_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          echo "RELEASE_KEYSTORE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+      - name: Unit tests and signed release build
+        working-directory: native
+        env:
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon testReleaseUnitTest assembleRelease
+      - name: Checksum and certificate
+        run: |
+          out="weather-kiosk-${GITHUB_REF_NAME}.apk"
+          cp native/app/build/outputs/apk/release/app-release.apk "$out"
+          sha256sum "$out" > "$out.sha256"
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs "$out" > signing-cert.txt
+          cat "$out.sha256" signing-cert.txt
+          rm -f "$RUNNER_TEMP/release.jks"
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          out="weather-kiosk-${GITHUB_REF_NAME}.apk"
+          {
+            echo "Weather Kiosk ${GITHUB_REF_NAME}, built by GitHub Actions from the code at this tag."
+            echo
+            echo "SHA-256:"
+            echo '```'
+            cat "$out.sha256"
+            echo '```'
+            echo "Signing certificate:"
+            echo '```'
+            cat signing-cert.txt
+            echo '```'
+            echo "Install: see native/README.md."
+          } > notes.md
+          gh release create "$GITHUB_REF_NAME" "$out" "$out.sha256" signing-cert.txt \
+            --title "Weather Kiosk ${GITHUB_REF_NAME}" --notes-file notes.md

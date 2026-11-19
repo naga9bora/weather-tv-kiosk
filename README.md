@@ -1,1 +1,218 @@
-# weather-tv-kiosk
+# TV Weather Dashboard
+
+An always-on weather display for the Android TV box (`Android TV box`, 192.0.2.10), built as a
+tiny fullscreen kiosk app. No cloud account, no API key, no PC needed at runtime.
+
+```
+┌  Kuala Selangor                        15:21 ┐
+│  IP 203.0.113.10 · Telekom Malaysia        │
+│ ▸ THUNDERSTORMS WARNING — until 18:00       │
+│                                              │
+│  ⛅ 29°C            7-DAY FORECAST            │
+│  Light drizzle      Today Sat Sun Mon …      │
+│  feels 35°C          32° 31° 32° 33°          │
+│  ┌────────┬────────┐  24° 24° 25° 24°         │
+│  │Humidity│ Wind   │  AM · PM · Nt           │
+│  └────────┴────────┘                          │
+│  updated 15:21 · ok      forecast: Kuala Selangor │
+└──────────────────────────────────────────────┘
+```
+
+## Where the data comes from
+
+| Piece | Source | Notes |
+|---|---|---|
+| 7-day district forecast | **MET Malaysia** via `api.data.gov.my` | Official MET data, public, no key. 440 forecast locations. |
+| Advisories / warnings | MET Malaysia via `api.data.gov.my` | Filtered to your state and the last 24 h. |
+| Current conditions | **METAR** (NOAA) → Open-Meteo → OpenWeatherMap | A fresh airport observation (< 110 min) wins by default; see `CONFIG.preferObservation`. |
+| 60-minute rain outlook | **Tomorrow.io** | 1-minute steps, proxied — the key never reaches the page. |
+| Radar | **RainViewer** | Latest frame from `api.rainviewer.com`, proxied same-origin. |
+| Basemap | **CARTO Dark Matter** → Esri → OSM | CARTO needs a key (in `CONFIG`-adjacent JS); Esri/OSM are keyless fallbacks. |
+| Location | ISP lookup → district match | `ip-api` first, `ipinfo` fallback, then nearest MET district. |
+
+Observations come from `aviationweather.gov` (keyless). The old feed on
+`metar.vatsim.net` is **simulated flight-sim weather** and is no longer used.
+Tomorrow.io's key lives in `app.py` and `MainActivity.java`, not in the page.
+
+MET also runs its own API at `api.met.gov.my`, which hands out free tokens
+(1,000 requests/day). It is supported — put the token in `CONFIG.metToken` and the
+dashboard uses it instead of the public mirror. To get one, open
+<https://api.met.gov.my/>, click **Login → Get Your Access Token**, and fill in the
+form; approval is manual, so it is the one thing that cannot be automated.
+
+The token is **optional**: `api.data.gov.my` already republishes MET's official
+district forecast and warnings, so the dashboard shows MET's own BM text and
+advisories without an account. The token only removes the mirror as a middleman.
+
+## Location resolution
+
+Order of preference (`CONFIG.manual` in `static/index.html`):
+
+1. **Auto-detect GPS** — attempts browser geolocation (device GPS or network-based location).  
+   On Android 6+ the user will be prompted to allow location access.  
+   If granted, the nearest MET forecast district is used automatically.  
+   If denied or unavailable, falls back to option 2.
+
+2. **Manual** — currently set to your home district:  
+   ```js
+   manual: { locationId: "Ds058", lat: 3.1390, lon: 101.6869,
+             region: "Kuala Lumpur", note: "manual · city centre" }
+   ```  
+   This is the recommended setting for a fixed home; use it if you don't want
+   the app to request location permission. Set it to `null` to fall back to
+   ISP geolocation.
+
+3. **ISP geolocation** — public IP → lat/lon → nearest MET forecast district  
+   (277 of the 440 districts have coordinates, from geoBoundaries ADM2).  
+   Useful when GPS is denied or the device has no GPS hardware.
+
+4. **Fallback** — Klang (Ds054) if the network is unreachable.
+
+Find ids in `data/locations.json`, or run `python tools/find_location.py kuala`.
+
+## Layout
+
+```
+weather-tv/
+  static/index.html        page + logic (config block at the top)
+  static/style.css         stylesheet, inlined at build time
+  data/locations.json      MET location id -> name/coords
+  dist/index.html          built page (this is what ships in the APK)
+  dist/weather-kiosk.apk   signed installable
+  android/                 kiosk app sources
+  app.py                   optional local preview server
+  tools/                   build + device helper scripts
+  .sdk/                    Android platform + build-tools (~130 MB, gitignore)
+```
+
+## Everyday commands
+
+```powershell
+# change the page, then ship it to the TV (no APK rebuild, ~2 s)
+python tools\build_html.py
+powershell -ExecutionPolicy Bypass -File .\scripts\update-page.ps1
+
+# rebuild the APK (only needed when android/ changes)
+python tools\build_apk.py
+powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1
+
+# preview on this PC
+python app.py            # http://localhost:8080
+
+# remove everything from the TV
+powershell -ExecutionPolicy Bypass -File .\scripts\uninstall.ps1
+```
+
+(The `-ExecutionPolicy Bypass` flag is only needed if your shell blocks local
+scripts. `adb` is expected at `C:\platform-tools\adb.exe`; override with `-Adb`.)
+
+## How the kiosk works
+
+- `MainActivity` hosts a `WebView` at a fake origin `http://weather.local/`;
+  `shouldInterceptRequest` answers it from device storage, so the page is not
+  loaded from the network but still counts as a normal web origin (CORS works).
+- The HTML is read from `/sdcard/Android/data/tv.weather.kiosk/files/index.html`
+  when present, otherwise from the packaged asset — that is why page updates are
+  instant while the app stays installed.
+- **Known-good fallback.** The page is read in the order `index.html` →
+  `index.html.bak` → packaged asset. `scripts/update-page.ps1` copies the running
+  page to `index.html.bak` before every push and verifies the byte count. If the
+  new copy never sends its first heartbeat within 90 s, the shell records its
+  fingerprint in `SharedPreferences`, marks it unbootable and immediately reloads
+  from the backup — so a broken push costs about 90 s, once, instead of a dark
+  lobby. Pushing a new file changes the fingerprint and re-enables the primary
+  copy automatically.
+
+## Radar
+
+The radar card is a **Leaflet 1.9.4** map (`static/vendor/leaflet.js`, inlined by
+`tools/build_html.py`) showing **RainViewer** precipitation tiles over a CARTO
+Dark Matter basemap. It is non-interactive (no drag/zoom/keyboard) for lobby use.
+
+| Piece | URL | Notes |
+| --- | --- | --- |
+| Frames | `api.rainviewer.com/public/weather-maps.json` | latest `radar.past[-1]` |
+| Tiles | `tilecache.rainviewer.com<path>/256/{z}/{x}/{y}/2/1_1.png` | colour 2, smoothed |
+| Basemap | `{s}.basemaps.cartocdn.com/dark_nolabels` and `dark_only_labels`, `…?key=…` | CARTO key; `?key=` is the only working param |
+| Fallbacks | Esri Dark Gray Canvas → OSM (CSS-darkened) | keyless, after 3 `tileerror` |
+
+Both the frame list and the tiles are served **same-origin** by
+`/api/rainviewer/maps` and `/api/rainviewer/tile?f=&z=&x=&y=` (`app.py` and
+`MainActivity.serveRainviewer`), so the page fetches nothing cross-origin and the
+frame path is validated as `/v2/radar/<id>`.
+
+`CONFIG.radarRegion` picks the initial view: `my` z5, `sem` z6, `east` z6. The
+stamp shows the **frame's** time, and the frame only advances when a newer one is
+published, so the label always matches what is on screen. On failure the previous
+frame stays up; the card hides only if nothing ever loaded.
+
+Under the map, `renderNowcast()` adds a one-line outlook from Tomorrow.io
+(`/api/nowcast`): `tiada hujan 60 min`, `hujan ±12 min lagi`, `berhenti ±20 min`
+or `hujan berterusan`. It ignores steps under 0.25 mm/h (or under 0.1 mm/h with
+< 50% probability) — otherwise a 0.12 mm/h drizzle 54 minutes out gets announced
+as rain and the display looks broken. The free tier allows 25 calls/hour (the
+kiosk uses 6), so a failed refresh keeps the previous line and only drops it
+after 20 minutes.
+
+The legacy MET CAPPI GIF proxy (`/api/radar/<region>`, `/api/radar/<region>/meta`,
+`android/assets/groot-r46.pem`) is still compiled in but unused by the page.
+
+## Kiosk app behaviour
+
+- Fullscreen immersive mode, `FLAG_KEEP_SCREEN_ON`, BACK is swallowed, and the
+  WebView is rebuilt every 6 h and on renderer death.
+- **Heartbeat watchdog.** The page calls `AndroidInterface.beat()` every 30 s; if
+  no beat arrives for 4 min (hung JS, stopped timers, blank view) the shell
+  rebuilds the WebView. The clock starts as soon as the page is loaded, so a page
+  that never boots is also recovered.
+  Bridge methods must be annotated `@JavascriptInterface` — since API 17 the
+  WebView silently exposes an *empty* object without it (this is why
+  `requestExit` never worked before that annotation was added).
+- Autostart: `BOOT_COMPLETED` receiver + the `SYSTEM_ALERT_WINDOW` app-op that
+  `scripts/install.ps1` grants (Android 10 blocks background activity starts
+  without it). Verified across a real reboot.
+
+### Page-side housekeeping
+
+All of this is in `static/index.html` (search for `Kiosk housekeeping`) and
+configured in `CONFIG`:
+
+| Feature | Config | Behaviour |
+| --- | --- | --- |
+| Night dimming | `nightDim` (23:30–06:30, 0.55) | Black overlay fades in overnight: less light spill in a closed lobby and far less panel wear. Never intercepts input. |
+| Burn-in drift | `burnIn.drift` (2 px) | The whole layout walks through four 2-px offsets every 30 min, so static text does not sit on the same pixels for weeks. |
+| Header blanking | `burnIn.blankHeader` | Static header fades out for 30 s at :45 each hour. Set `blankHeader: false` if the disappearing clock reads as a fault. |
+| Nightly reload | fixed at 04:00 | `location.reload()` clears WebView memory while the lobby is empty. |
+| Source cache | `CACHE_TTL_MS` (12 h) | Open-Meteo current, METAR and MET forecast rows are kept in `localStorage`; a failed fetch re-renders the last good copy, keeping its original timestamps. |
+| Status badge | 3 states | `ok`, `ok · cache` (complete, some data carried over) and `ralat` only when nothing rendered at all. A single dead upstream no longer paints the panel red. |
+| Staleness badge | 20 / 45 min | The footer status turns amber `basi N min` after 20 min without a successful cycle and red after 45, so a frozen-but-painted screen is obvious. |
+
+## Notes / limitations
+
+- MET forecast text is Malay; the dashboard translates the standard phrases and
+  keeps the original string underneath.
+- Forecast granularity is **district**, not your street. That is a MET limit.
+- Warnings are matched by state name, so a national warning can appear even when
+  your area is not affected — open the banner text for the full advisory.
+- The device WebView is Chrome 74, so the page avoids `clamp()`, `dvh`, flex
+  `gap`, and `??`. Keep that in mind when editing.
+
+## Repository
+
+<https://github.com/naga9bora/weather-tv-kiosk>
+
+Tracked: `static/`, `android/` (manifest, Java, icons), `data/`, `tools/`,
+`scripts/`, `app.py`, `native/`, `README.md`.
+
+Not tracked (generated): `.sdk/`, `build/`, `dist/`, `android/assets/`,
+`cache/`, `__pycache__/`. Rebuild with:
+
+```powershell
+python tools\build_html.py     # static/ -> dist/index.html
+python tools\build_apk.py      # dist/ + android/ -> dist/weather-kiosk.apk
+```
+
+Two keys live in the source: the Tomorrow.io key in `app.py` and
+`MainActivity.java` (kept out of the page on purpose) and the OpenWeatherMap key
+in `CONFIG.openWeatherMapKey`. If this repository is ever made public, both must
+be moved to environment variables first.

@@ -1,0 +1,1760 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cuaca · Utama</title>
+<style>
+  :root {
+    --bg0: #06070d;
+    --bg1: #0f1220;
+    --card: rgba(255,255,255,.045);
+    --line: rgba(255,255,255,.10);
+    --fg: #f2f5ff;
+    --dim: #8e97b3;
+    --accent: #6ec3ff;
+    --ok: #58d68d;
+    --warn: #ffc93c;
+    --bad: #ff6b6b;
+    --radius: 18px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background:
+      radial-gradient(1200px 700px at 82% -10%, rgba(110,195,255,.10), transparent 60%),
+      radial-gradient(900px 600px at 8% 110%, rgba(140,120,255,.10), transparent 60%),
+      linear-gradient(160deg, var(--bg1), var(--bg0) 70%);
+    color: var(--fg);
+    font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    cursor: none;
+  }
+  #app {
+    height: 100dvh;
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    gap: clamp(6px, 1dvh, 14px);
+    padding: clamp(12px, 2.2dvh, 26px) clamp(16px, 2.4vw, 34px);
+  }
+
+  /* ---------- header ---------- */
+  header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+  .place { display: flex; flex-direction: column; }
+  .place h1 {
+    font-size: clamp(20px, 3.4dvh, 34px);
+    font-weight: 650; letter-spacing: -.01em; line-height: 1.1;
+  }
+  .place .meta {
+    margin-top: .35em; font-size: clamp(11px, 1.55dvh, 15px);
+    color: var(--dim); display: flex; align-items: center; gap: .6em; flex-wrap: wrap;
+  }
+  .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--dim); display: inline-block; }
+  .clock { text-align: right; }
+  .clock .time { font-size: clamp(24px, 4.2dvh, 42px); font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.02em; line-height: 1; }
+  .clock .date { font-size: clamp(11px, 1.5dvh, 14px); color: var(--dim); margin-top: .4em; }
+
+  /* ---------- warning ---------- */
+  #warn {
+    display: none; align-items: center; gap: .7em;
+    background: linear-gradient(90deg, rgba(255,201,60,.16), rgba(255,201,60,.05));
+    border: 1px solid rgba(255,201,60,.35); border-radius: 12px;
+    padding: .55em .9em; font-size: clamp(11px, 1.55dvh, 15px);
+  }
+  #warn.show { display: flex; }
+  #warn .tag {
+    flex: none; font-weight: 700; font-size: .82em; letter-spacing: .08em; text-transform: uppercase;
+    color: #1a1400; background: var(--warn); border-radius: 6px; padding: .22em .55em;
+  }
+  #warn .txt { color: #ffe9a8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ---------- main ---------- */
+  main { display: flex; flex-direction: row; min-height: 0; }
+  .left-col { display: flex; flex-direction: column; flex: 1; min-width: 0; margin-right: 1.4vw; }
+  #fc { flex: 1; min-width: 0; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    position: relative; overflow: hidden; min-height: 0;
+  }
+
+  /* current */
+  #now { padding: clamp(12px, 2dvh, 22px) clamp(14px, 1.6vw, 24px); display: flex; flex-direction: column; position: relative; }
+  #now .condRow { display: flex; align-items: flex-start; flex: 1; min-height: 0; }
+  #now .condCol { display: flex; flex-direction: column; align-items: stretch; min-width: 0; flex: 1; min-height: 0; }
+  #now .icon { margin-right: 18px; }
+  #now .cond { margin-top: .35em; }
+  .icon { width: clamp(46px, 8.5dvh, 84px); height: clamp(46px, 8.5dvh, 84px); flex: none; }
+  .icon svg { width: 100%; height: 100%; display: block; }
+  .temp { font-size: clamp(46px, 10.5dvh, 104px); font-weight: 200; line-height: .9; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+  .temp sup { font-size: .38em; font-weight: 300; vertical-align: super; letter-spacing: 0; }
+  .cond { font-size: clamp(13px, 2dvh, 20px); font-weight: 550; margin-top: .15em; }
+  .cond small { display: block; color: var(--dim); font-weight: 400; font-size: .78em; margin-top: .18em; }
+
+  #now .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 16px; padding-bottom: 70px; }
+  .stat { background: rgba(255,255,255,.035); border: 1px solid var(--line); border-radius: 12px; padding: .5em .65em; }
+  .stat .k { font-size: clamp(9px, 1.25dvh, 12px); color: var(--dim); text-transform: uppercase; letter-spacing: .07em; }
+  .stat .v { font-size: clamp(14px, 2.1dvh, 22px); font-weight: 600; margin-top: .12em; font-variant-numeric: tabular-nums; }
+  .stat .v span { font-size: .68em; font-weight: 400; color: var(--dim); }
+  /* forecast */
+  #fc { padding: clamp(10px, 1.6dvh, 18px); display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
+  .fcHead { display: flex; align-items: baseline; justify-content: space-between; padding: 0 .25em .55em; }
+  .fcHead h2 { font-size: clamp(10px, 1.45dvh, 13px); font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+  .fcHead .src { font-size: clamp(9px, 1.2dvh, 11px); color: var(--dim); opacity: .8; }
+  .days { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: clamp(5px, .6vw, 10px); flex: 1; min-height: 0; }
+  .day {
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: .35em;
+    background: rgba(255,255,255,.03); border: 1px solid var(--line);
+    border-radius: 14px; padding: clamp(7px, 1.2dvh, 13px) 4px; min-width: 0;
+  }
+  .day.today { background: rgba(110,195,255,.10); border-color: rgba(110,195,255,.42); }
+  .day .dow { font-size: clamp(10px, 1.5dvh, 14px); font-weight: 650; letter-spacing: .02em; }
+  .day .dnum { font-size: clamp(8px, 1.15dvh, 11px); color: var(--dim); margin-top: -.35em; }
+  .day .icon { width: clamp(28px, 4.6dvh, 44px); height: clamp(28px, 4.6dvh, 44px); }
+  .day .tmax { font-size: clamp(14px, 2.2dvh, 22px); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .day .tmin { font-size: clamp(10px, 1.5dvh, 14px); color: var(--dim); font-variant-numeric: tabular-nums; margin-top: -.3em; }
+  .day .periods { margin-top: auto; width: 100%; display: flex; flex-direction: column; gap: 2px; padding: 0 clamp(2px, .3vw, 6px); }
+  .prow { display: flex; align-items: center; justify-content: space-between; gap: 4px; font-size: clamp(8px, 1.1dvh, 10px); color: var(--dim); }
+  .prow .pl { text-transform: uppercase; letter-spacing: .06em; opacity: .75; }
+  .pdot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+
+  /* footer */
+  footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: clamp(9px, 1.25dvh, 12px); color: var(--dim); }
+  footer .l { display: flex; align-items: center; gap: .55em; flex-wrap: wrap; }
+  .badge { border: 1px solid var(--line); border-radius: 999px; padding: .18em .6em; }
+  .badge.stale { border-color: rgba(255,107,107,.5); color: #ffb3b3; }
+  #status.ok { color: var(--ok); }
+  #status.err { color: var(--bad); }
+
+  /* boot */
+  #boot {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 14px; background: var(--bg0); z-index: 20;
+    transition: opacity .5s ease; font-size: clamp(13px, 1.8dvh, 17px); color: var(--dim);
+  }
+  #boot.hide { opacity: 0; pointer-events: none; }
+  .spin { width: 34px; height: 34px; border-radius: 50%; border: 3px solid rgba(255,255,255,.12); border-top-color: var(--accent); animation: sp 1s linear infinite; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  #boot .err { color: var(--bad); max-width: 70ch; text-align: center; line-height: 1.5; }
+
+/* hourly forecast */
+.hourly { margin-top: clamp(10px, 1.4vw, 20px); }
+.hourlyHeader { display: flex; align-items: baseline; justify-content: space-between; padding: 0 .25em .55em; }
+.hourlyHeader h2 { font-size: clamp(10px, 1.45dvh, 13px); font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+.hourlyGrid { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: clamp(5px, .6vw, 10px); flex: 1; min-height: 0; overflow-x: auto; }
+.hourlyItem {
+  display: flex; flex-direction: column; align-items: center; gap: .35em;
+  background: rgba(255,255,255,.03); border: 1px solid var(--line);
+  border-radius: 14px; padding: clamp(7px, 1.2dvh, 13px) 4px; min-width: 0;
+}
+.hourlyItem .hourTime { font-size: clamp(10px, 1.5dvh, 14px); font-weight: 650; color: var(--fg); }
+.hourlyItem .hourIcon { width: clamp(24px, 3.5dvh, 34px); height: clamp(24px, 3.5dvh, 34px); margin-top: .2em; }
+.hourlyItem .hourTemp { font-size: clamp(14px, 2.2dvh, 22px); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--accent); }
+.hourlyItem .hourDesc { font-size: clamp(8px, 1.1dvh, 10px); color: var(--dim); text-transform: uppercase; letter-spacing: .06em; margin-top: .1em; }
+.hourlyItem .hourRain { font-size: clamp(9px, 1.2dvh, 11px); color: var(--accent); margin-top: .1em; }
+.hourlyItem .hourCloudBar { width: 100%; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; margin-top: .3em; }
+.hourlyItem .hourCloudFill { height: 100%; background: var(--accent); border-radius: 2px; transition: width .3s ease; }
+</style>
+</head>
+<body>
+
+<div id="boot"><div class="spin"></div><div id="bootMsg">Mengenal pasti lokasi…</div></div>
+
+<div id="app">
+  <header>
+    <div class="place">
+      <h1 id="placeName">—</h1>
+      <div class="meta" id="placeMeta"></div>
+    </div>
+    <div class="clock">
+      <div class="time" id="clock">--:--</div>
+      <div class="date" id="today">—</div>
+    </div>
+  </header>
+
+  <div id="warn"><span class="tag">Amaran</span><span class="txt" id="warnTxt"></span></div>
+
+  <main>
+    <div class="left-col">
+      <section class="card" id="now">
+        <div class="condRow">
+          <div class="icon" id="nowIcon"></div>
+          <div class="condCol">
+            <div class="temp" id="nowTemp">--<sup>°C</sup></div>
+            <div class="cond" id="nowCond">—<small id="nowCondBm"></small></div>
+          </div>
+        </div>
+        <div class="stats" id="nowStats"></div>
+      </section>
+
+      <section class="card" id="haze">
+        <div class="hazeHead"><span class="hazeHeadLabel">KUALITI UDARA · IPU</span></div>
+        <div class="hazeVal">
+          <span id="hazeApi">—</span>
+          <span id="hazeBand" class="hazeBand">—</span>
+        </div>
+        <div class="hazeBar">
+          <div class="hazeTrack"></div>
+          <div id="hazeMarker" class="hazeMarker"></div>
+        </div>
+        <div class="hazeTicks"><span>0</span><span>51</span><span>101</span><span>201</span><span>300</span><span>301+</span></div>
+        <div class="hazeDesc" id="hazeDesc">—</div>
+      </section>
+    </div>
+
+    <div class="right-col">
+      <section class="card" id="radar">
+        <div class="radarHead">
+          <h2 id="radarTitle">Radar hujan</h2>
+          <span class="src" id="radarSrc">Peta · RainViewer</span>
+        </div>
+        <div class="radarBody">
+          <div id="radarMap" class="radarMap" aria-label="Peta radar hujan"></div>
+        </div>
+        <div class="radarFoot">
+          <span id="radarUpdated">Dikemas kini —</span><span id="radarNow"></span>
+          <span class="radarAttrib" id="radarProviders">© OpenStreetMap · © CARTO · RainViewer · Tomorrow.io</span>
+        </div>
+      </section>
+      <section class="card" id="fc">
+        <div class="fcHead">
+          <h2 id="fcTitle">Ramalan 7 hari</h2>
+          <span class="src" id="fcSrc">MET Malaysia · ramalan daerah</span>
+        </div>
+        <div class="days" id="days"></div>
+        <div class="hourly" id="hourly"></div>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    <div class="l">
+      <span class="badge" id="srcBadge">sumber</span>
+      <span class="dot"></span>
+      <span id="updated">belum dikemas kini</span>
+      <span class="dot"></span>
+      <span id="status">—</span>
+    </div>
+    <div class="l">
+      <span class="badge" id="locBadge">lokasi</span>
+    </div>
+  </footer>
+</div>
+
+<div id="dim"></div>
+
+<script>/*__LEAFLET__*/</script>
+<script>
+/* =====================================================================
+   CONFIG — edit this block only.
+   ===================================================================== */
+const CONFIG = {
+  // Manual override. When set, ISP geolocation is skipped entirely.
+  //   locationId : MET forecast location id (see data/locations.json, e.g. "Ds054")
+  //   lat/lon    : point used for the "current conditions" tile
+  //   region     : state name, used to match MET advisories
+  // Set to null to resolve from your ISP's IP geolocation instead.
+  // **Note:** If LocalStorage contains "manualLat" and "manualLon", those values
+  // will override this manual configuration, allowing end-users to set their
+  // location via the "Set Location" dialog in the app without editing code.
+  manual: { locationId: "Ds058", lat: 3.1390, lon: 101.6869,
+            region: "Kuala Lumpur", note: "manual · city centre" },
+
+  // Weather source priority: Open-Meteo (1st) -> OpenWeatherMap (2nd) -> METAR Subang (3rd).
+  // preferredModel: "auto" (priority chain above) | "openmeteo" | "openweathermap" | "metar"
+  // Set a specific model to pin to one source regardless of priority.
+  preferredModel: "auto",
+
+  // Prefer a fresh airport observation (real METAR) over the model for the big
+  // current-conditions tile. Models run 2-3 C cold under KL's afternoon cloud
+  // and invent drizzle the airport is not reporting; an observation within
+  // ~110 min is still better ground truth than a wrong model value.
+  // Set false to always show the model value.
+  preferObservation: true,
+
+  // MET Malaysia official API token (api.met.gov.my). Optional — when present it is
+  // used instead of the public data.gov.my mirror. See README for how to get one.
+  metToken: null,
+
+  // OpenWeatherMap API key (free tier at openweathermap.org)
+  // Shows current conditions at exact coordinates - more local than Subang METAR
+  openWeatherMapKey: "REDACTED_OWM_KEY",
+
+  refreshMinutes: 10,   // how often to re-fetch weather + location
+  warnWindowHours: 24,   // only surface MET warnings issued within this window
+  showSeconds: true,
+
+  // Lobby housekeeping. Night dimming cuts light spill and panel wear after
+  // hours; the overlay is pointer-transparent so nothing else changes.
+  nightDim: { from: "23:30", to: "06:30", level: 0.55 },
+
+  // Burn-in care: drift the whole layout by a couple of pixels every 30 min,
+  // and blank the static header for 30 s once an hour. Set blankHeader:false
+  // if the disappearing clock looks like a fault to you.
+  burnIn: { drift: 2, blankHeader: true, blankAt: 45, blankSec: 30 },
+
+  // Rain radar panel - MET Malaysia animated GIF. radarRegion: "my" (Malaysia) | "sem" (Peninsula) | "east" (Sabah & Sarawak)
+  radar: true,
+  radarRegion: "my"
+};
+
+const TZ = "Asia/Kuala_Lumpur";
+const LOCATIONS = /*__LOCATIONS__*/[];
+
+/* =====================================================================
+   Icons
+   ===================================================================== */
+const SVG = {
+  clear:    `<svg viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="12" fill="#ffd166"/><g stroke="#ffd166" stroke-width="3" stroke-linecap="round"><path d="M32 6v7M32 51v7M6 32h7M51 32h7M13.6 13.6l5 5M45.4 45.4l5 5M50.4 13.6l-5 5M18.6 45.4l-5 5"/></g></svg>`,
+  partly:   `<svg viewBox="0 0 64 64" fill="none"><circle cx="24" cy="23" r="8.5" fill="#ffd166"/><path d="M17 46h29a9 9 0 0 0 1-17.9A13 13 0 0 0 21.5 32 7 7 0 0 0 17 46Z" fill="#cfd8ea"/></svg>`,
+  cloudy:   `<svg viewBox="0 0 64 64" fill="none"><path d="M16 44h30a9.5 9.5 0 0 0 1.2-18.9A13.5 13.5 0 0 0 20.7 29 7.6 7.6 0 0 0 16 44Z" fill="#b9c3d8"/></svg>`,
+  rain:     `<svg viewBox="0 0 64 64" fill="none"><path d="M16 38h30a9.5 9.5 0 0 0 1.2-18.9A13.5 13.5 0 0 0 20.7 23 7.6 7.6 0 0 0 16 38Z" fill="#b9c3d8"/><g stroke="#5eb0ff" stroke-width="3.4" stroke-linecap="round"><path d="M23 45l-2.5 8M33 45l-2.5 8M43 45l-2.5 8"/></g></svg>`,
+  storm:    `<svg viewBox="0 0 64 64" fill="none"><path d="M16 36h30a9.5 9.5 0 0 0 1.2-18.9A13.5 13.5 0 0 0 20.7 21 7.6 7.6 0 0 0 16 36Z" fill="#a9b4cc"/><path d="M33 38l-8 12h7l-3 10 11-14h-7l3-8Z" fill="#ffd166"/><g stroke="#5eb0ff" stroke-width="3.2" stroke-linecap="round"><path d="M21 41l-2 7M46 41l-2 7"/></g></svg>`,
+  haze:     `<svg viewBox="0 0 64 64" fill="none"><circle cx="32" cy="30" r="10" fill="#e8c98a" opacity=".55"/><g stroke="#c9b48f" stroke-width="3.2" stroke-linecap="round" opacity=".9"><path d="M12 40h40M16 48h32M20 56h24"/></g></svg>`,
+  night:    `<svg viewBox="0 0 64 64" fill="none"><path d="M40 12a20 20 0 1 0 12 30A22 22 0 0 1 40 12Z" fill="#cfd8ea"/><circle cx="46" cy="18" r="1.8" fill="#fff"/><circle cx="54" cy="30" r="1.3" fill="#fff"/><circle cx="38" cy="8" r="1.1" fill="#fff"/></svg>`
+};
+
+/* =====================================================================
+   Helpers
+   ===================================================================== */
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2, "0");
+
+/* Malay date names (avoids relying on the WebView's locale data) */
+const DAY_SHORT = ["Ahd", "Isn", "Sel", "Rab", "Kha", "Jum", "Sab"];
+const DAY_LONG = ["Ahad", "Isnin", "Selasa", "Rabu", "Khamis", "Jumaat", "Sabtu"];
+const MONTH_SHORT = ["Jan", "Feb", "Mac", "Apr", "Mei", "Jun", "Jul", "Ogos", "Sep", "Okt", "Nov", "Dis"];
+const MONTH_LONG = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
+const ymdTZ = d => new Date(d).toLocaleDateString("en-CA", { timeZone: TZ });
+const dateFromYmd = ymd => new Date(ymd + "T12:00:00");
+const dayShort = ymd => DAY_SHORT[dateFromYmd(ymd).getDay()];
+const dateShort = ymd => { const d = dateFromYmd(ymd); return pad(d.getDate()) + " " + MONTH_SHORT[d.getMonth()]; };
+const dateTimeShort = t => { const d = dateFromYmd(ymdTZ(t)); return pad(d.getDate()) + " " + MONTH_SHORT[d.getMonth()] + ", " + clockHM(t); };
+const HAZE_STATION = "Kuala Lumpur";
+const HAZE_URL = "/api/haze";   // same origin — served locally by the kiosk app
+const HAZE_BANDS = ["Baik", "Sederhana", "Tidak Sihat", "Sangat Tidak Sihat", "Berbahaya"];
+const HAZE_COLORS = ["#4F8EF7", "#3FB77F", "#F2C94C", "#F2994A", "#E5484D"];
+const HAZE_MAX_KM = 200;   // nearest station to the weather location wins
+function hazeBand(api) { const LOW = [0, 51, 101, 201, 301], HIGH = [50, 100, 200, 300, 500]; for (let b = 0; b < 4; b++) if (api <= HIGH[b]) return b; return 4; }
+
+/* Air Pollutant Index (JAS / APIMS via eqms.doe.my) - nearest station to the resolved weather location */
+async function fetchHaze(loc) {
+  const u = HAZE_URL;
+  const d = await jget(u);
+  const arr = d.features || d.data;
+  if (!arr) return null;
+  const portal = !Array.isArray(d.features);
+  const wantLat = loc && isFinite(Number(loc.lat)) ? Number(loc.lat) : null;
+  const wantLon = loc && isFinite(Number(loc.lon)) ? Number(loc.lon) : null;
+  const want = norm(HAZE_STATION);
+  let found = null;
+  // Nearest valid station to the weather location (coordinates-based), else fall back to name match
+  let nearest = null, nearestKm = Infinity;
+  for (const f of arr) {
+    const a = portal ? f : (f.attributes || {});
+    const name = norm(a.STATION_LOCATION || a.stationLocation || a.station || "");
+    const apiKeys = ["API", "API_VALUE", "APIVALUE", "API_READING", "IPU", "READING", "VALUE"];
+    let api = -1;
+    for (const k of apiKeys) { const v = a[k]; if (v !== undefined && v !== null && v !== "") { api = Number(v); break; } }
+    const tstr = String(a.DATETIME || a.RECORD_DT || "");
+    const m = tstr.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/);
+    const t = m ? Date.parse(tstr.slice(0, 19)) : 0;
+    const sLat = isFinite(Number(a.LATITUDE)) ? Number(a.LATITUDE) : (isFinite(Number(a.latitude)) ? Number(a.latitude) : NaN);
+    const sLon = isFinite(Number(a.LONGITUDE)) ? Number(a.LONGITUDE) : (isFinite(Number(a.longitude)) ? Number(a.longitude) : NaN);
+    if (wantLat != null && wantLon != null && isFinite(sLat) && isFinite(sLon)) {
+      const km = haversine(wantLat, wantLon, sLat, sLon);
+      if (api >= 0 && km < nearestKm && km <= HAZE_MAX_KM) { nearest = { api: api, name: name, t: t, km: km }; nearestKm = km; }
+    } else if (!want || name.includes(want)) {
+      found = { api: api, name: name, t: t, km: null };
+    }
+  }
+  if (nearest) found = nearest;
+  if (!found) return null;
+  const band = hazeBand(found.api);
+  return { api: found.api, band: band, name: found.name };
+}
+
+function renderHaze(hz) {
+  const el = $("haze");
+  if (!hz || hz.api == null || hz.api < 0) { el.style.display = "none"; return; }
+  const bandName = HAZE_BANDS[hz.band] || HAZE_BANDS[0];
+  const color = HAZE_COLORS[hz.band] || HAZE_COLORS[0];
+  $("hazeApi").textContent = String(hz.api);
+  $("hazeBand").textContent = bandName;
+  $("hazeBand").style.color = color;
+  $("hazeBand").style.borderColor = color;
+  const pct = Math.max(0, Math.min(100, (hz.api / 301) * 100));
+  const m = $("hazeMarker");
+  if (m) m.style.left = pct + "%";
+  const desc = {
+    0: "Kualiti udara baik. Selamat untuk semua aktiviti.",
+    1: "Tiada jerebu. Selamat untuk aktiviti luar.",
+    2: "Kurangkan aktiviti luar yang panjang.",
+    3: "Hindari aktiviti luar.",
+    4: "Kualiti udara berbahaya. Kekal di dalam rumah."
+  }[hz.band] || "";
+  $("hazeDesc").textContent = desc;
+  el.style.display = "flex";
+}
+
+function jget(url, opts = {}, timeout = 15000) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), timeout);
+  return fetch(url, { ...opts, signal: ctl.signal, cache: "no-store" })
+    .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .finally(() => clearTimeout(t));
+}
+
+/* ---- last-good cache ----------------------------------------------------
+   The panel must stay complete through a WAN outage, an upstream 500 or a
+   mid-night reload: every cacheable source is kept in memory and localStorage
+   for 12 h and re-used when its fetch throws. Rendered data keeps its own
+   timestamps, so a cached value never pretends to be fresh - the footer says
+   "basi N min" once the cycle itself stops succeeding. */
+const CACHE_TTL_MS = 12 * 3600e3;
+const memCache = {};
+
+function cacheKey(name, loc) {
+  const la = loc && isFinite(Number(loc.lat)) ? Number(loc.lat).toFixed(2) : "";
+  const lo = loc && isFinite(Number(loc.lon)) ? Number(loc.lon).toFixed(2) : "";
+  return "wk:" + name + ":" + ((loc && loc.locationId) || "?") + ":" + la + "," + lo;
+}
+
+function cachePut(key, value) {
+  const rec = { at: Date.now(), value: value };
+  memCache[key] = rec;
+  try { localStorage.setItem(key, JSON.stringify(rec)); } catch (e) { /* quota */ }
+}
+
+function cacheGet(key) {
+  let rec = memCache[key];
+  if (!rec) {
+    try { rec = JSON.parse(localStorage.getItem(key) || "null"); } catch (e) { rec = null; }
+    if (rec && rec.value != null) memCache[key] = rec;
+  }
+  if (!rec || rec.value == null) return null;
+  if (Date.now() - (rec.at || 0) > CACHE_TTL_MS) return null;
+  return rec;
+}
+
+/* Runs fn(); on success caches the value, on failure falls back to the last
+   good copy. Returns { value, cached } so the caller can label the render. */
+function withCache(name, loc, fn) {
+  const key = cacheKey(name, loc);
+  return Promise.resolve().then(fn).then(function (v) {
+    if (v) cachePut(key, v);
+    return { value: v, cached: false };
+  }).catch(function (e) {
+    const rec = cacheGet(key);
+    if (!rec) throw e;
+    return { value: rec.value, cached: true, at: rec.at };
+  });
+}
+
+function haversine(a1, o1, a2, o2) {
+  const R = 6371, toRad = d => d * Math.PI / 180;
+  const dA = toRad(a2 - a1), dO = toRad(o2 - o1);
+  const h = Math.sin(dA / 2) ** 2 + Math.cos(toRad(a1)) * Math.cos(toRad(a2)) * Math.sin(dO / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+const norm = s => String(s || "").toLowerCase().normalize("NFKD")
+  .replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+
+function nearestLocation(lat, lon) {
+  let best = null, bd = Infinity;
+  for (const l of LOCATIONS) {
+    if (l.lat == null) continue;
+    const d = haversine(lat, lon, l.lat, l.lon);
+    if (d < bd) { bd = d; best = l; }
+  }
+  return best ? { ...best, distanceKm: bd } : null;
+}
+
+function matchByName(city) {
+  const c = norm(city);
+  if (!c) return null;
+  return LOCATIONS.find(l => norm(l.name) === c)
+      || LOCATIONS.find(l => norm(l.name).startsWith(c) || c.startsWith(norm(l.name))) || null;
+}
+
+/* MET condition phrase -> { icon, en } */
+function describeBm(text) {
+  const s = String(text || "").toLowerCase();
+  const en = {
+    "tiada hujan": "Tiada hujan",
+    "hujan di beberapa tempat": "Hujan di beberapa tempat",
+    "hujan di satu dua tempat": "Hujan di satu dua tempat",
+    "hujan lebat": "Hujan lebat",
+    "hujan": "Hujan",
+    "ribut petir di beberapa tempat": "Ribut petir di beberapa tempat",
+    "ribut petir di satu dua tempat": "Ribut petir di satu dua tempat",
+    "ribut petir": "Ribut petir",
+    "berjerebu": "Berjerebu",
+    "jerebu": "Jerebu",
+    "berawan": "Berawan",
+    "cerah": "Cerah"
+  };
+  const key = Object.keys(en).sort((a, b) => b.length - a.length).find(k => s.includes(k));
+  let icon = "clear";
+  if (/ribut|petir/.test(s)) icon = "storm";
+  else if (/lebat/.test(s)) icon = "rain";
+  else if (/hujan/.test(s)) icon = "rain";
+  else if (/jerebu/.test(s)) icon = "haze";
+  else if (/berawan|mendung/.test(s)) icon = "cloudy";
+  else if (/tiada hujan|cerah/.test(s)) icon = "clear";
+  else if (!s) icon = "cloudy";
+  return { icon, en: key ? en[key] : (text || "—"), bm: text || "" };
+}
+
+const sev = { storm: 4, rain: 3, haze: 3, cloudy: 2, partly: 1, clear: 0, night: 1 };
+function worst(icons) { return icons.reduce((a, b) => (sev[b] > sev[a] ? b : a), "clear"); }
+
+/* WMO code -> { icon, en } for Open-Meteo current conditions */
+function describeWmo(code, isDay) {
+  const m = {
+    0: ["clear", "Langit cerah"], 1: ["partly", "Kebanyakannya cerah"], 2: ["partly", "Sebahagian berawan"],
+    3: ["cloudy", "Mendung"], 45: ["haze", "Kabut"], 48: ["haze", "Kabut beku"],
+    51: ["rain", "Gerimis ringan"], 53: ["rain", "Gerimis"], 55: ["rain", "Gerimis lebat"],
+    56: ["rain", "Gerimis beku"], 57: ["rain", "Gerimis beku"],
+    61: ["rain", "Hujan ringan"], 63: ["rain", "Hujan"], 65: ["rain", "Hujan lebat"],
+    66: ["rain", "Hujan beku"], 67: ["rain", "Hujan beku"],
+    71: ["rain", "Salji ringan"], 73: ["rain", "Salji"], 75: ["rain", "Salji lebat"], 77: ["rain", "Butir salji"],
+    80: ["rain", "Hujan ringan"], 81: ["rain", "Hujan"], 82: ["storm", "Hujan lebat"],
+    85: ["rain", "Hujan salji"], 86: ["rain", "Hujan salji"],
+    95: ["storm", "Ribut petir"], 96: ["storm", "Ribut petir dengan hujan batu"], 99: ["storm", "Ribut petir dengan hujan batu"]
+  };
+  const [icon, en] = m[code] || ["cloudy", "—"];
+  if (!isDay && icon === "clear") return { icon: "night", en: "Malam cerah" };
+  return { icon, en };
+}
+
+const DIRS = ["U", "UTL", "T", "TGG", "S", "BD", "B", "BL"];
+const compass = d => DIRS[Math.round(((d % 360) / 45)) % 8];
+
+/* RainViewer radar on a Leaflet basemap (option A). Synced by polling the
+ * weather-maps API for the latest available radar frame on each refresh.
+ * Requests go through the same-origin proxy so they work from the kiosk's
+ * http://weather.local origin without mixed-content/fetch issues. */
+const RADAR_API = "/api/rainviewer/maps";
+const RADAR_LABEL = { my: "Radar Malaysia", sem: "Radar Semenanjung", east: "Radar Sabah & Sarawak" };
+const RADAR_VIEW = {
+  my:   { center: [4.2, 109.5], zoom: 5 },
+  sem:  { center: [3.9, 102.1], zoom: 6 },
+  east: { center: [4.3, 114.3], zoom: 6 }
+};
+let radarMap = null, radarBase = null, radarLabels = null, radarLayer = null, radarFramePath = null, radarRegionCur = null;
+
+/* Basemap candidates, most preferred first. CARTO Dark Matter needs the free
+ * key below; without a valid key every tile comes back stamped "API KEY
+ * REQUIRED", so a failed key/quota falls back to Esri's keyless Dark Gray
+ * Canvas, and finally to plain OSM darkened by CSS. */
+const CARTO_KEY = "REDACTED_CARTO_KEY";
+const RADAR_BASES = [
+  {
+    credit: "&copy; OpenStreetMap &middot; &copy; CARTO",
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+    base: "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png?key=" + CARTO_KEY,
+    labels: "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png?key=" + CARTO_KEY,
+    subdomains: "abcd", maxZoom: 20
+  },
+  {
+    credit: "&copy; Esri &middot; OpenStreetMap",
+    attribution: '&copy; <a href="https://www.esri.com/">Esri</a>, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    base: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+    labels: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
+    labelClass: "radarLabels", maxZoom: 16
+  },
+  {
+    credit: "&copy; OpenStreetMap",
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    base: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    className: "osmDark", maxZoom: 19
+  }
+];
+
+function installRadarBase(idx) {
+  const map = radarMap;
+  if (!map) return;
+  if (radarBase) { try { map.removeLayer(radarBase); } catch (e) {} radarBase = null; }
+  if (radarLabels) { try { map.removeLayer(radarLabels); } catch (e) {} radarLabels = null; }
+  const cfg = RADAR_BASES[idx];
+  const baseOpts = { attribution: cfg.attribution, maxZoom: cfg.maxZoom };
+  if (cfg.subdomains) baseOpts.subdomains = cfg.subdomains;
+  if (cfg.className) baseOpts.className = cfg.className;
+  radarBase = L.tileLayer(cfg.base, baseOpts).addTo(map);
+  if (cfg.labels) {
+    const labelOpts = { maxZoom: cfg.maxZoom, pane: "radarLabels", className: cfg.labelClass || "" };
+    if (cfg.subdomains) labelOpts.subdomains = cfg.subdomains;
+    radarLabels = L.tileLayer(cfg.labels, labelOpts).addTo(map);
+  }
+  const providers = $("radarProviders");
+  if (providers) providers.innerHTML = cfg.credit + " · RainViewer · Tomorrow.io";
+  let ok = 0, err = 0;
+  radarBase.on("tileload", function () { ok++; });
+  radarBase.on("tileerror", function () {
+    err++;
+    if (!ok && err >= 3 && idx + 1 < RADAR_BASES.length) installRadarBase(idx + 1);
+  });
+}
+
+function setRadarTime(tsSec) {
+  const el = $("radarUpdated");
+  if (!el) return;
+  if (!tsSec) { el.textContent = "Dikemas kini —"; return; }
+  el.textContent = "Dikemas kini " + new Date(tsSec * 1000).toLocaleTimeString("en-GB", {
+    timeZone: TZ, hour: "2-digit", minute: "2-digit"
+  }) + " MYT";
+}
+
+function ensureRadarMap(region) {
+  if (typeof L === "undefined") return null;
+  const card = $("radar"), container = $("radarMap");
+  if (!card || !container) return null;
+  const view = RADAR_VIEW[region] || RADAR_VIEW.my;
+  if (!radarMap) {
+    radarMap = L.map(container, {
+      center: view.center, zoom: view.zoom,
+      zoomControl: false, attributionControl: true,
+      dragging: false, scrollWheelZoom: false, doubleClickZoom: false,
+      boxZoom: false, keyboard: false, tap: false, touchZoom: false
+    });
+    radarMap.createPane("radarLabels");
+    radarMap.getPane("radarLabels").style.zIndex = 450;
+    radarMap.getPane("radarLabels").style.pointerEvents = "none";
+    installRadarBase(0);
+  }
+  if (radarRegionCur !== region) {
+    radarMap.setView(view.center, view.zoom, { animate: false });
+    radarRegionCur = region;
+  }
+  return radarMap;
+}
+
+function showRadarCard(show) {
+  const card = $("radar");
+  if (!card) return;
+  try {
+    card.style.display = show ? "flex" : "none";
+    document.body.classList.toggle("has-radar", !!show);
+  } catch (e) { /* ignore */ }
+  if (show && radarMap) {
+    setTimeout(function () { try { radarMap.invalidateSize(); } catch (e) {} }, 0);
+  }
+}
+
+function loadRadar() {
+  if (!CONFIG.radar) { showRadarCard(false); return; }
+  if (typeof L === "undefined") { showRadarCard(false); return; }
+  const region = RADAR_VIEW[CONFIG.radarRegion] ? CONFIG.radarRegion : "my";
+  $("radarSrc").textContent = (RADAR_LABEL[region] || "Radar hujan") + " · RainViewer";
+  const map = ensureRadarMap(region);
+  if (!map) { showRadarCard(false); return; }
+
+  fetch(RADAR_API + "?t=" + Date.now(), { cache: "no-store" })
+    .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+    .then(function (data) {
+      const past = data && data.radar && data.radar.past;
+      if (!past || !past.length) throw new Error("no frames");
+      const frame = past[past.length - 1];
+      const url = "/api/rainviewer/tile?f=" + encodeURIComponent(frame.path) + "&z={z}&x={x}&y={y}";
+      if (radarLayer && radarFramePath === frame.path) {
+        setRadarTime(frame.time);
+        showRadarCard(true);
+        return;
+      }
+      if (radarLayer) { try { map.removeLayer(radarLayer); } catch (e) {} }
+      radarLayer = L.tileLayer(url, { tileSize: 256, opacity: 0.72, pane: "overlayPane" });
+      radarLayer.on("load", function () { showRadarCard(true); });
+      radarLayer.addTo(map);
+      radarFramePath = frame.path;
+      setRadarTime(frame.time);
+      // Show card even if some tiles lag; hide only if we never had anything.
+      if (!radarLayer._loaded) { showRadarCard(true); }
+      setTimeout(function () { try { map.invalidateSize(); } catch (e) {} }, 50);
+    })
+    .catch(function (e) {
+      try { console.warn("radar load failed", e); } catch (x) {}
+      if (!radarLayer) { setRadarTime(0); showRadarCard(false); }
+      // keep previous frame visible on transient errors
+    });
+}
+
+/* =====================================================================
+   Location resolution: GPS auto-detect -> ISP -> manual -> fallback district
+   ===================================================================== */
+async function resolveLocation() {
+  // 1. Manual config wins immediately — a TV has no GPS, so trying it first stalls renders for 10s
+  if (CONFIG.manual) {
+    const m = CONFIG.manual;
+    const row = LOCATIONS.find(l => l.id === m.locationId) || null;
+    return {
+      locationId: m.locationId || (row && row.id),
+      name: (row && row.name) || m.label || "Lokasi manual",
+      lat: (m.lat != null ? m.lat : (row ? row.lat : null)),
+      lon: (m.lon != null ? m.lon : (row ? row.lon : null)),
+      region: m.region || null,
+      via: m.note || "konfigurasi manual"
+    };
+  }
+
+  // 2. Reuse a cached last-good location for 30 minutes
+  if (lastGood && lastGood.loc && (Date.now() - (lastGood.at || 0) < 30 * 60e3)) {
+    return lastGood.loc;
+  }
+
+  // 3. Try browser geolocation (low-accuracy cached fix — the TV has no GPS chip)
+  if (navigator.geolocation) {
+    try {
+      const pos = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          pos => resolve(pos),
+          err => reject(err),
+          { timeout: 3000, maximumAge: 300000, enableHighAccuracy: false }
+        );
+      });
+      const { latitude, longitude } = pos.coords;
+      // Find the nearest forecast district
+      const named = matchByName(null); // just use generic match
+      const near = nearestLocation(latitude, longitude);
+      const pick = (near && haversine(latitude, longitude, near.lat, near.lon) < 50) ? named : (named || near);
+      if (pick) {
+        return {
+          locationId: pick.id,
+          name: pick.name,
+          lat: latitude,
+          longitude,
+          via: "GPS auto-detect"
+        };
+      }
+    } catch (e) {
+      // fall through to ISP/ manual below - GPS unavailable or denied
+    }
+  }
+
+  // 3. Try ISP geolocation (ip-api.com -> ipinfo.io)
+  let isp = null;
+  try {
+    const d = await jget("http://ip-api.com/json/?fields=status,city,regionName,lat,lon,isp,query", {}, 8000);
+    if (d.status === "success") isp = { lat: d.lat, lon: d.lon, city: d.city, region: d.regionName, isp: d.isp, ip: d.query, src: "ip-api" };
+  } catch (e) { /* fall through */ }
+
+  if (!isp) {
+    try {
+      const d = await jget("https://ipinfo.io/json", {}, 8000);
+      const [lat, lon] = String(d.loc || "").split(",").map(Number);
+      if (isFinite(lat) && isFinite(lon)) isp = { lat, lon, city: d.city, region: d.region, isp: d.org, ip: d.ip, src: "ipinfo" };
+    } catch (e) { /* fall through */ }
+  }
+
+  if (!isp) {
+    const def = LOCATIONS.find(l => l.id === "Ds054") || LOCATIONS[0];
+    return { locationId: def.id, name: def.name, lat: def.lat, lon: def.lon, via: "fallback (ISP lookup failed)" };
+  }
+
+  // If the ISP city name is literally one of the forecast districts, trust it.
+  const named = matchByName(isp.city);
+  const near = nearestLocation(isp.lat, isp.lon);
+  const pick = (named && near && haversine(isp.lat, isp.lon, named.lat, named.lon) < 25) ? named : (named || near);
+
+  return {
+    locationId: pick.id,
+    name: pick.name,
+    lat: (isp.lat != null ? isp.lat : pick.lat),
+    lon: (isp.lon != null ? isp.lon : pick.lon),
+    via: "IP " + isp.ip + " · " + (isp.isp || isp.src),
+    ispCity: isp.city,
+    region: isp.region,
+    approxKm: near ? Math.round(near.distanceKm) : null
+  };
+}
+
+/* =====================================================================
+   Weather fetching
+   ===================================================================== */
+/* One silent retry: the MET mirror occasionally answers late or with a 5xx for
+   a single request. A second attempt 1.5 s later clears almost all of those
+   without the caller ever noticing. */
+function jgetRetry(url, opts, timeout) {
+  return jget(url, opts, timeout).catch(() => new Promise(res => {
+    setTimeout(res, 1500);
+  }).then(() => jget(url, opts, timeout)));
+}
+
+/* Last good MET forecast, kept in memory and localStorage. A failed refresh must
+   not blank a populated strip nor turn the whole panel red: the previous copy is
+   still ten minutes of useful forecast. Cleared only when it is 6 h old. */
+const FC_CACHE_KEY = "metForecastCache";
+let fcCache = null;      // { id, at, rows }
+let fcStale = false;     // true when this refresh is serving the cached copy
+
+function fcCacheLoad(loc) {
+  const ok = c => c && c.id === loc.locationId && c.rows && c.rows.length
+    && (Date.now() - c.at) < 6 * 3600e3;
+  if (ok(fcCache)) return fcCache;
+  try {
+    const c = JSON.parse(localStorage.getItem(FC_CACHE_KEY) || "null");
+    if (ok(c)) { fcCache = c; return c; }
+  } catch (e) { /* corrupt or unavailable storage - ignore */ }
+  return null;
+}
+
+function fcCacheSave(loc, rows) {
+  fcCache = { id: loc.locationId, at: Date.now(), rows };
+  try { localStorage.setItem(FC_CACHE_KEY, JSON.stringify(fcCache)); } catch (e) { /* quota */ }
+}
+
+async function fetchMetForecast(loc) {
+  let rows;
+  try {
+    if (CONFIG.metToken) {
+      // Official api.met.gov.my (requires a token). Structure differs from the mirror.
+      const u = `https://api.met.gov.my/v2.1/data?datasetid=FORECAST&datacategoryid=GENERAL&locationid=LOCATION:${encodeURIComponent(loc.locationId)}`;
+      const d = await jgetRetry(u, { headers: { Authorization: "METToken " + CONFIG.metToken } });
+      rows = (d.results || []).map(r => {
+        const v = Object.fromEntries((r.value || []).map(x => [x.name, x.value]));
+        return {
+          date: r.date, min_temp: +v.mintemp, max_temp: +v.maxtemp,
+          morning_forecast: v.morning_forecast, afternoon_forecast: v.afternoon_forecast,
+          night_forecast: v.night_forecast, summary_forecast: v.summary_forecast
+        };
+      });
+    } else {
+      const u = `https://api.data.gov.my/weather/forecast?filter=${encodeURIComponent(loc.locationId)}@location_id&sort=date&limit=10`;
+      const raw = await jgetRetry(u);
+      rows = raw.map(r => ({
+        date: r.date, min_temp: r.min_temp, max_temp: r.max_temp,
+        morning_forecast: r.morning_forecast, afternoon_forecast: r.afternoon_forecast,
+        night_forecast: r.night_forecast, summary_forecast: r.summary_forecast
+      }));
+    }
+  } catch (e) {
+    const cached = fcCacheLoad(loc);
+    if (!cached) throw e;          // nothing to fall back on - report the error
+    fcStale = true;
+    return cached.rows;
+  }
+  if (rows.length) { fcCacheSave(loc, rows); fcStale = false; }
+  else { fcStale = false; }
+  return rows;
+}
+
+/* ---- current conditions -------------------------------------------------
+   Preference order:
+     1. a real METAR observation from the nearest MET airport station
+        (Subang WMSA, or KLIA WMKK) - this is what "no rain here" looks like;
+     2. otherwise an Open-Meteo model estimate, clearly labelled as such.
+
+   A single model blend is unreliable in convective weather: on 2026-10-30 the
+   default blend claimed 0.7 mm of showers over Kuala Lumpur while Subang was
+   reporting 33 C, 10 km visibility and no rain at all.
+   ---------------------------------------------------------------------- */
+const METAR_STATIONS = [
+  { id: "WMSA", name: "Subang", lat: 3.1306, lon: 101.5493 },
+  { id: "WMKK", name: "KLIA",   lat: 2.7456, lon: 101.7099 }
+];
+
+const WX_TOKEN = /^[-+]?(VC)?(TS|SH|RA|DZ|GR|GS|SN|BR|HZ|FG|FU|DU|SA|SQ|PO|FC|SS|DS|PL|IC|UP)+$/;
+const CLOUD_LABEL = { FEW: "Sedikit", SCT: "Tersebar", BKN: "Pecah", OVC: "Mendung" };
+
+function metarTime(dd, hh, mm) {
+  const now = new Date();
+  let t = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), dd, hh, mm);
+  if (t - now.getTime() > 36 * 3600e3) {   // report from the previous month
+    t = Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, dd, hh, mm);
+  }
+  return t;
+}
+
+function parseMetars(text) {
+  const out = {};
+  String(text || "").split(/\r?\n/).forEach(line => {
+    const m = String(line).trim().match(/^(?:METAR\s+|SPECI\s+)?([A-Z]{4})\s+(\d{2})(\d{2})(\d{2})Z\s+(.+)$/);
+    if (!m) return;
+    const body = m[5];
+    const td = body.match(/\s(M?\d{2})\/(M?\d{2})\s/);
+    if (!td) return;
+    const num = s => (s.charAt(0) === "M" ? -parseInt(s.slice(1), 10) : parseInt(s, 10));
+    const wind = body.match(/\b(\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?KT\b/);
+    const cloud = body.match(/\b(FEW|SCT|BKN|OVC)(\d{3})(CB|TCU)?/);
+    out[m[1]] = {
+      id: m[1],
+      time: metarTime(+m[2], +m[3], +m[4]),
+      temp: num(td[1]),
+      dew: num(td[2]),
+      windKt: wind ? +wind[2] : null,
+      windDir: wind ? (wind[1] === "VRB" ? null : +wind[1]) : null,
+      gustKt: wind && wind[3] ? +wind[3] : null,
+      wx: body.split(/\s+/).filter(t => WX_TOKEN.test(t)),
+      clouds: cloud ? cloud[1] : "",
+      cloudFt: cloud ? +cloud[2] * 100 : null,
+      cavok: /\bCAVOK\b/.test(body)
+    };
+  });
+  return out;
+}
+
+async function fetchObservation(loc) {
+  if (loc.lat == null || loc.lon == null) return null;
+  const near = METAR_STATIONS
+    .map(s => ({ ...s, km: haversine(loc.lat, loc.lon, s.lat, s.lon) }))
+    .sort((a, b) => a.km - b.km);
+  const r = await fetch("/api/metar?ids=" + near.map(s => s.id).join(","),
+                        { cache: "no-store" });
+  if (!r.ok) throw new Error("METAR HTTP " + r.status);
+  const obs = parseMetars(await r.text());
+  for (const s of near) {
+    const o = obs[s.id];
+    if (!o) continue;
+    if ((Date.now() - o.time) / 60000 > 150) continue;   // stale report
+    return { ...o, station: s.name, km: Math.round(s.km) };
+  }
+  return null;
+}
+
+function clockHM(t) {
+  return new Date(t).toLocaleTimeString("en-GB", {
+    timeZone: TZ, hour: "2-digit", minute: "2-digit"
+  });
+}
+
+function humidityFromDew(t, td) {
+  const es = 6.112 * Math.exp(17.67 * t / (t + 243.5));
+  const e = 6.112 * Math.exp(17.67 * td / (td + 243.5));
+  return Math.max(1, Math.min(100, Math.round(100 * e / es)));
+}
+
+/* Steadman apparent temperature (the "feels like" used by BoM). */
+function apparentTemp(t, rh, windMs) {
+  const e = (rh / 100) * 6.112 * Math.exp(17.67 * t / (t + 243.5));
+  return t + 0.33 * e - 0.7 * windMs - 4;
+}
+
+function describeMetar(o, isDay) {
+  const s = o.wx.join(" ");
+  let icon, en;
+  if (/TS|SQ|FC/.test(s))             { icon = "storm";  en = "Ribut petir"; }
+  else if (/SH/.test(s))              { icon = "rain";   en = /VC/.test(s) ? "Hujan berhampiran" : "Hujan"; }
+  else if (/RA|DZ|GR|GS|PL/.test(s))  { icon = "rain";   en = /\+/.test(s) ? "Hujan lebat" : (/-/.test(s) ? "Hujan ringan" : "Hujan"); }
+  else if (/FG/.test(s))              { icon = "haze";   en = "Kabut"; }
+  else if (/HZ|FU|DU|SA/.test(s))     { icon = "haze";   en = "Jerebu"; }
+  else if (/BR/.test(s))              { icon = "haze";   en = "Kabus"; }
+  else if (/OVC|BKN/.test(o.clouds))  { icon = "cloudy"; en = "Berawan"; }
+  else if (/SCT|FEW/.test(o.clouds))  { icon = "partly"; en = "Sebahagian berawan"; }
+  else                                 { icon = "clear";  en = "Cerah"; }
+  if (!isDay && (icon === "clear" || icon === "partly")) icon = "night";
+  return { icon: icon, en: en };
+}
+
+async function fetchNowcast(loc) {
+  if (loc.lat == null || loc.lon == null) return null;
+  const d = await jget(`/api/nowcast?lat=${loc.lat}&lon=${loc.lon}`, {}, 12000);
+  const tl = (d && d.timelines && d.timelines.minutely) || [];
+  if (!tl.length) return null;
+  const rain = tl.map(e => +((e.values && e.values.rainIntensity) || 0));
+  const prob = tl.map(e => +((e.values && e.values.precipitationProbability) || 0));
+  return { rain: rain, prob: prob, at: tl[0] && tl[0].time, n: tl.length };
+}
+
+/* One-line rain outlook on the radar card, from Tomorrow.io's 1-minute steps.
+ * Radar shows where rain is; this says when it reaches the kiosk. Uses rain
+ * intensity first (probability alone runs high in the tropics). */
+let nowcastAt = 0;
+function renderNowcast(nc) {
+  const el = $("radarNow");
+  if (!el) return;
+  /* A failed refresh (e.g. the free tier's 25 calls/hour) must not blank the
+     line: keep the last outlook and let the housekeeping timer drop it once it
+     is 20 min old. */
+  if (!nc || !nc.rain || !nc.rain.length) return;
+  nowcastAt = Date.now();
+  const rain = nc.rain, prob = nc.prob;
+  /* 0.1 mm/h is barely a drizzle, and Tomorrow's own probability is often 5%
+     for those steps — announcing "hujan ±54 min" for that reads as broken. */
+  const wet = i => rain[i] >= 0.25 || (rain[i] >= 0.1 && prob[i] >= 50);
+  if (wet(0)) {
+    let n = 0;
+    while (n < rain.length && wet(n)) n++;
+    el.textContent = n >= rain.length ? "hujan berterusan" : "berhenti ±" + n + " min";
+    return;
+  }
+  let k = -1;
+  for (let i = 1; i < rain.length; i++) if (wet(i)) { k = i; break; }
+  el.textContent = k < 1 ? "tiada hujan 60 min" : "hujan ±" + k + " min lagi";
+}
+
+async function fetchCurrent(loc) {
+  if (loc.lat == null || loc.lon == null) return null;
+  const u = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}`
+    + `&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,`
+    + `wind_speed_10m,wind_direction_10m,is_day,surface_pressure`
+    + `&hourly=cloud_cover,precipitation,precipitation_probability,weathercode,temperature_2m`
+    + `&daily=sunrise,sunset,precipitation_probability_max,uv_index_max,weather_code,temperature_2m_max,temperature_2m_min`
+    + `&timezone=${encodeURIComponent(TZ)}&forecast_days=7`;
+  const d = await jget(u);
+  return { current: d.current, daily: d.daily, hourly: d.hourly };
+}
+
+function popNextHours(hourly, nowIso, hours) {
+  try {
+    let key;
+    if (nowIso) {
+      key = String(nowIso).slice(0, 13) + ":00";            // "2026-11-17T10:00"
+    } else {
+      const hh = new Date().toLocaleTimeString("en-GB", { timeZone: TZ, hour: "2-digit", hour12: false });
+      key = ymdTZ(Date.now()) + "T" + hh.slice(0, 2) + ":00";
+    }
+    const i = hourly.time.indexOf(key);
+    if (i < 0) return null;
+    let m = 0, seen = false;
+    for (let k = i; k < Math.min(hourly.time.length, i + hours); k++) {
+      const v = hourly.precipitation_probability ? hourly.precipitation_probability[k] : null;
+      if (v != null) { seen = true; if (v > m) m = v; }
+    }
+    return seen ? m : null;
+  } catch (e) { return null; }
+}
+
+/* OpenWeatherMap current conditions - more local than Subang METAR */
+const OWM_TO_ICON = {
+  200: "storm", 201: "storm", 202: "storm", 210: "storm", 211: "storm", 212: "storm", 221: "storm", 230: "storm", 231: "storm", 232: "storm",
+  300: "rain", 301: "rain", 302: "rain", 310: "rain", 311: "rain", 312: "rain", 313: "rain", 314: "rain", 321: "rain",
+  500: "rain", 501: "rain", 502: "rain", 503: "rain", 504: "rain", 511: "rain", 520: "rain", 521: "rain", 522: "rain", 531: "rain",
+  600: "rain", 601: "rain", 602: "rain", 611: "rain", 612: "rain", 613: "rain", 615: "rain", 616: "rain", 620: "rain", 621: "rain", 622: "rain",
+  701: "haze", 711: "haze", 721: "haze", 731: "haze", 741: "haze", 751: "haze", 761: "haze", 762: "haze", 771: "haze", 781: "storm",
+  800: "clear",
+  801: "partly", 802: "partly", 803: "cloudy", 804: "cloudy"
+};
+
+async function fetchOpenWeatherMap(loc) {
+  if (!CONFIG.openWeatherMapKey || loc.lat == null || loc.lon == null) return null;
+  const u = `https://api.openweathermap.org/data/2.5/weather?lat=${loc.lat}&lon=${loc.lon}&appid=${CONFIG.openWeatherMapKey}&units=metric`;
+  const d = await jget(u);
+  const w = d.weather[0];
+  let icon = OWM_TO_ICON[w.id] || "cloudy";
+  if (/n$/.test(w.icon || "") && (icon === "clear" || icon === "partly")) icon = "night";
+  return {
+    temp: d.main.temp,
+    feelsLike: d.main.feels_like,
+    humidity: d.main.humidity,
+    pressure: d.main.pressure,
+    windSpeed: d.wind.speed,
+    windDeg: d.wind.deg,
+    clouds: d.clouds.all,
+    weatherCode: w.id,
+    weatherMain: w.main,
+    weatherDesc: w.description ? w.description.charAt(0).toUpperCase() + w.description.slice(1) : "",
+    icon: icon,
+    sunrise: d.sys.sunrise,
+    sunset: d.sys.sunset,
+    obsTime: d.dt * 1000
+  };
+}
+
+/* OpenWeatherMap 5-day/3-hour forecast — used when the model selector prefers OWM */
+async function fetchOwmForecast(loc) {
+  if (!CONFIG.openWeatherMapKey || loc.lat == null || loc.lon == null) return null;
+  const u = `https://api.openweathermap.org/data/2.5/forecast?lat=${loc.lat}&lon=${loc.lon}&appid=${CONFIG.openWeatherMapKey}&units=metric`;
+  const d = await jget(u);
+  return (d.list || []).map(e => ({
+    dt: e.dt * 1000,
+    date: new Date(e.dt * 1000).toLocaleDateString("en-CA", { timeZone: TZ }),
+    temp: e.main ? e.main.temp : null,
+    tmin: e.main ? e.main.temp_min : null,
+    tmax: e.main ? e.main.temp_max : null,
+    code: e.weather && e.weather[0] ? e.weather[0].id : 0,
+    main: e.weather && e.weather[0] ? e.weather[0].main : "",
+    desc: e.weather && e.weather[0] ? e.weather[0].description : "",
+    cloud: e.clouds ? e.clouds.all : 0,
+    pop: e.pop != null ? Math.round(e.pop * 100) : 0,
+    rain: e.rain && e.rain["3h"] != null ? e.rain["3h"] : null
+  }));
+}
+
+/* OWM weather id -> {icon, en} for forecast entries */
+function describeOwm(id) {
+  const n = Number(id) || 0, g = Math.floor(n / 100);
+  if (n === 800) return { icon: "clear", en: "Cerah" };
+  if (n === 801 || n === 802) return { icon: "partly", en: "Sebahagian berawan" };
+  if (n >= 803) return { icon: "cloudy", en: "Awan pecah" };
+  if (g === 2) return { icon: "storm", en: "Ribut petir" };
+  if (g === 3 || g === 5) return { icon: "rain", en: "Hujan" };
+  if (g === 6) return { icon: "rain", en: "Salji" };
+  if (g === 7) return { icon: "haze", en: "Jerebu" };
+  return { icon: "cloudy", en: "Berawan" };
+}
+
+const dotIcon = icon => ({ storm: "#ffd166", rain: "#5eb0ff", haze: "#c9b48f", cloudy: "#9aa6bf", clear: "transparent", partly: "transparent", night: "#9aa6bf" }[icon] || "#9aa6bf");
+function dayDots(icon) {
+  const d = icon || "cloudy";
+  const row = (label, x) => '<div class="prow"><span class="pl">' + label + '</span><span class="pdot" style="background:' + dotIcon(x) + '"></span></div>';
+  return row("Pagi", d) + row("Ptg", d) + row("Mlm", d);
+}
+
+function renderOmDaily(daily) {
+  const times = (daily && daily.time) || [];
+  if (!times.length) { $("days").innerHTML = ""; return; }
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: TZ });
+  const codes = (daily && daily.weather_code) || [];
+  const tmax = (daily && daily.temperature_2m_max) || [], tmin = (daily && daily.temperature_2m_min) || [];
+  $("days").innerHTML = times.slice(0, 7).map((t, i) => {
+    const dt = new Date(t + "T12:00:00");
+    const isToday = t === today;
+    const dow = isToday ? "Hari ini" : DAY_SHORT[dt.getDay()];
+    const dnum = pad(dt.getDate()) + " " + MONTH_SHORT[dt.getMonth()];
+    const w = describeWmo((codes[i] != null ? codes[i] : 0), true);
+    const icon = w.icon;
+    return '<div class="day' + (isToday ? " today" : "") + '">'
+      + '<div class="dow">' + dow + '</div><div class="dnum">' + dnum + '</div>'
+      + '<div class="icon">' + (SVG[icon] || SVG.cloudy) + '</div>'
+      + '<div class="tmax">' + (tmax[i] != null ? Math.round(tmax[i]) + "°" : "—") + '</div>'
+      + '<div class="tmin">' + (tmin[i] != null ? Math.round(tmin[i]) + "°" : "—") + '</div>'
+      + '<div class="periods">' + dayDots(icon) + '</div>'
+      + '</div>';
+  }).join("");
+}
+
+function renderOwmDaily(list) {
+  const byDate = {};
+  for (const e of (list || [])) { const k = e.date; (byDate[k] = byDate[k] || []).push(e); }
+  const dates = Object.keys(byDate).sort().slice(0, 5);
+  if (!dates.length) { $("days").innerHTML = ""; return; }
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: TZ });
+  $("days").innerHTML = dates.map(date => {
+    const entries = byDate[date];
+    const tmaxVals = [], tminVals = [], freq = {};
+    for (const e of entries) {
+      if (e.tmax != null) tmaxVals.push(e.tmax);
+      if (e.tmin != null) tminVals.push(e.tmin);
+      freq[e.code] = (freq[e.code] || 0) + 1;
+    }
+    const tmax = tmaxVals.length ? Math.max.apply(null, tmaxVals) : null;
+    const tmin = tminVals.length ? Math.min.apply(null, tminVals) : null;
+    const top = Object.keys(freq).sort((a, b) => freq[b] - freq[a])[0];
+    const w = describeOwm(top != null ? Number(top) : 0);
+    const icon = w.icon;
+    const dt = new Date(date + "T12:00:00");
+    const isToday = date === today;
+    const dow = isToday ? "Hari ini" : DAY_SHORT[dt.getDay()];
+    const dnum = pad(dt.getDate()) + " " + MONTH_SHORT[dt.getMonth()];
+    return '<div class="day' + (isToday ? " today" : "") + '">'
+      + '<div class="dow">' + dow + '</div><div class="dnum">' + dnum + '</div>'
+      + '<div class="icon">' + (SVG[icon] || SVG.cloudy) + '</div>'
+      + '<div class="tmax">' + (tmax != null ? Math.round(tmax) + "°" : "—") + '</div>'
+      + '<div class="tmin">' + (tmin != null ? Math.round(tmin) + "°" : "—") + '</div>'
+      + '<div class="periods">' + dayDots(icon) + '</div>'
+      + '</div>';
+  }).join("");
+}
+
+function renderOwmHourly(list) {
+  const now = Date.now();
+  const upcoming = (list || []).filter(e => e.dt >= now - 1800e3).slice(0, 5);
+  if (!upcoming.length) { $("hourly").innerHTML = ""; return; }
+  let html = '<div class="hourlyHeader"><h2>Ramalan 3 jam</h2><span class="sub">setiap 3 jam · OpenWeatherMap</span></div><div class="hourlyGrid">';
+  for (const e of upcoming) {
+    const h = new Date(e.dt);
+    const hour24 = h.getHours();
+    const hour12 = hour24 % 12 || 12;
+    const ampm = hour24 < 12 ? "PG" : "PTG";
+    const w = describeOwm(e.code);
+    const rainTxt = e.rain != null ? e.rain.toFixed(1) + "mm" : (e.pop ? e.pop + "%" : "—");
+    const rainCls = e.rain != null ? "" : " dry";
+    const cloud = e.cloud == null ? 0 : e.cloud;
+    const nextHour = (new Date().getHours() + 1) % 24;
+    const active = hour24 === nextHour ? " active" : "";
+    html += '<div class="hourlyItem' + active + '">'
+      + '<div class="hourTime"><span class="hh">' + hour12 + '</span><span class="ap">' + ampm + '</span></div>'
+      + '<div class="hourIcon">' + (SVG[w.icon] || SVG.cloudy) + '</div>'
+      + '<div class="hourTemp">' + (e.temp != null ? Math.round(e.temp) : "—") + '°</div>'
+      + '<div class="hourDesc">' + escapeHtml(w.en) + '</div>'
+      + '<div class="hourRain' + rainCls + '">' + rainTxt + '</div>'
+      + '<div class="hourCloudBar"><div class="hourCloudFill" style="width:' + Math.max(0, Math.min(100, cloud)) + '%"></div></div>'
+      + '</div>';
+  }
+  $("hourly").innerHTML = html + '</div>';
+}
+
+function pickWarnings(list, region) {
+  const cutoff = Date.now() - CONFIG.warnWindowHours * 3600e3;
+  const r = norm(region);
+  return (list || []).filter(w => {
+    const issued = Date.parse((w.warning_issue && w.warning_issue.issued) || "");
+    if (isFinite(issued) && issued < cutoff) return false;
+    if (!r) return true;
+    const hay = norm([w.heading_en, w.text_en, w.heading_bm, w.text_bm].join(" "));
+    return hay.includes(r) || hay.includes("all states") || hay.includes("peninsular malaysia");
+  });
+}
+
+/* =====================================================================
+   Rendering
+   ===================================================================== */
+function setIcon(el, name) { el.innerHTML = SVG[name] || SVG.cloudy; }
+
+function currentModel() {
+  try { return (localStorage && localStorage.getItem("weatherModel")) || CONFIG.preferredModel || "auto"; } catch (e) { return CONFIG.preferredModel || "auto"; }
+}
+const MODEL_ORDER = ["auto", "openmeteo", "openweathermap", "metar"];
+const MODEL_LABEL = { auto: "auto", openmeteo: "open-meteo", openweathermap: "openweathermap", metar: "metar" };
+
+function renderNow(loc, cur, owm, obs, omFallback) {
+  $("placeName").textContent = loc.name;
+
+  /* Fallback chain: Open-Meteo (1st) -> OpenWeatherMap (2nd) -> METAR Subang (3rd) */
+  const sourceLabel = cur ? "Open-Meteo" : (owm ? "OpenWeatherMap" : (obs ? obs.station + " · cerapan" : ""));
+  const sourceKm = obs && !cur && !owm ? obs.km : null;
+  const modelBtn = '<button type="button" class="badge model-btn" id="modelBadge" title="Sumber model cuaca — tekan untuk tukar">model: ' + escapeHtml(MODEL_LABEL[currentModel()] || "auto") + '</button>';
+  const placeMetaParts = [
+    escapeHtml(loc.via),
+    sourceKm != null ? `${sourceLabel} · ${sourceKm} km` : sourceLabel,
+    modelBtn,
+    `<span class="badge">${escapeHtml(loc.locationId || "")}</span>`
+  ].filter(Boolean);
+  $("placeMeta").innerHTML = placeMetaParts.join(' <span class="metaSep">·</span> ');
+
+  const d = (cur && cur.daily) || (omFallback && omFallback.daily) || {};
+  const sunrise = d.sunrise && d.sunrise[0] ? d.sunrise[0].slice(11, 16) : "—";
+  const sunset = d.sunset && d.sunset[0] ? d.sunset[0].slice(11, 16) : "—";
+  const uv = d.uv_index_max ? d.uv_index_max[0] : null;
+  /* "Peluang hujan" is the next 3 hours, not the whole day: on a dry morning the
+     24-hour maximum (e.g. 100%) reads as if it were raining now. */
+  const pop3 = cur && cur.hourly ? popNextHours(cur.hourly, cur.current.time, 3)
+    : (omFallback && omFallback.hourly ? popNextHours(omFallback.hourly, null, 3) : null);
+  const pop = pop3 != null ? pop3 : (d.precipitation_probability_max ? d.precipitation_probability_max[0] : null);
+
+  /* ---- Priority 1: Open-Meteo model at exact coordinates ---- */
+  if (cur) {
+    const c = cur.current;
+    const { icon, en } = describeWmo(c.weather_code, c.is_day === 1);
+    setIcon($("nowIcon"), icon);
+    $("nowTemp").innerHTML = `${Math.round(c.temperature_2m)}<sup>°C</sup>`;
+    $("nowCond").innerHTML = `${escapeHtml(en)}<small>Feels like ${Math.round(c.apparent_temperature)}°C · model estimate · Open-Meteo</small>`;
+
+    const rainChance = pop != null ? `${pop}<span>%</span>` : "—";
+    const stats = [
+      ["Kelembapan", `${c.relative_humidity_2m}<span>%</span>`],
+      ["Angin", `${Math.round(c.wind_speed_10m)}<span> km/j ${compass(c.wind_direction_10m)}</span>`],
+      ["Hujan sekarang", `${(c.precipitation == null ? 0 : c.precipitation).toFixed(1)}<span> mm</span>`],
+      ["Peluang hujan 3 j", rainChance],
+      ["UV maks", uv != null ? `${Math.round(uv)}<span> daripada 11</span>` : "—"],
+      ["Matahari", `<span>${sunrise} – ${sunset}</span>`]
+    ];
+    $("nowStats").innerHTML = stats.map(([k, v]) =>
+      `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
+    return;
+  }
+
+  /* ---- Priority 2: OpenWeatherMap at exact coordinates ---- */
+  if (owm) {
+    const owmLabel = describeOwm(owm.weatherCode).en;
+    setIcon($("nowIcon"), owm.icon);
+    $("nowTemp").innerHTML = `${Math.round(owm.temp)}<sup>°C</sup>`;
+    $("nowCond").innerHTML = `${escapeHtml(owmLabel)}<small>Feels like ${Math.round(owm.feelsLike)}°C · OpenWeatherMap · ${escapeHtml(owm.weatherDesc)}</small>`;
+
+    const windKmh = Math.round(owm.windSpeed * 3.6);
+    const windTxt = owm.windSpeed == 0 ? `<span>tenang</span>`
+      : `${windKmh}<span> km/j ${compass(owm.windDeg)}</span>`;
+
+    const cloudLabel = owm.clouds <= 10 ? "Cerah" : owm.clouds <= 25 ? "Separa" : owm.clouds <= 50 ? "Berawan" : "Mendung";
+    const cloudTxt = `${cloudLabel} ${owm.clouds}%`;
+
+    const rainChance = pop != null ? `${pop}<span>%</span>` : "—";
+    const stats = [
+      ["Kelembapan", `${owm.humidity}<span>%</span>`],
+      ["Angin", windTxt],
+      ["UV maks", uv != null ? `${Math.round(uv)}<span> daripada 11</span>` : "—"],
+      ["Awan", `<span>${cloudTxt}</span>`],
+      ["Peluang hujan 3 j", rainChance],
+      ["Matahari", `<span>${sunrise} – ${sunset}</span>`]
+    ];
+    $("nowStats").innerHTML = stats.map(([k, v]) =>
+      `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
+    return;
+  }
+
+  /* ---- Priority 3: METAR observation at Subang (18 km away) ---- */
+  if (obs) {
+    const obsRain = obs ? /(RA|SH|DZ|GR|GS|PL)/.test(obs.wx.join(" ")) : null;
+    const hour = Number(new Date(obs.time).toLocaleString("en-GB", {
+      timeZone: TZ, hour: "2-digit", hour12: false
+    }));
+    const isDay = hour >= 7 && hour < 19;
+    const meta = describeMetar(obs, isDay);
+    const rh = humidityFromDew(obs.temp, obs.dew);
+    const feels = Math.round(apparentTemp(obs.temp, rh, (obs.windKt || 0) * 0.514444));
+
+    setIcon($("nowIcon"), meta.icon);
+    $("nowTemp").innerHTML = `${obs.temp}<sup>°C</sup>`;
+    $("nowCond").innerHTML = `${escapeHtml(meta.en)}<small>Feels like ${feels}°C · dicerap ${clockHM(obs.time)} di ${escapeHtml(obs.station)}</small>`;
+
+    const kmh = obs.windKt == null ? null : Math.round(obs.windKt * 1.852);
+    const windTxt = kmh == null ? "—"
+      : (obs.windKt === 0 ? `<span>tenang</span>`
+        : `${kmh}<span> km/j ${obs.windDir == null ? "berubah" : compass(obs.windDir)}</span>`
+          + (obs.gustKt ? ` <span>G${Math.round(obs.gustKt * 1.852)}</span>` : ""));
+
+    const cloudTxt = obs.clouds
+      ? `${CLOUD_LABEL[obs.clouds]} awan${obs.cloudFt ? " " + (obs.cloudFt / 1000).toFixed(1) + "k kaki" : ""}`
+      : (obs.cavok ? "Cerah" : "—");
+
+    const rainChance = obsRain ? "0%" : (pop != null ? `${pop}<span>%</span>` : "—");
+    const stats = [
+      ["Kelembapan", `${rh}<span>%</span>`],
+      ["Angin", windTxt],
+      ["Titik embun", `${obs.dew}<span>°C</span>`],
+      ["Awan", `<span>${cloudTxt}</span>`],
+      ["Peluang hujan 3 j", rainChance],
+      ["Matahari", `<span>${sunrise} – ${sunset}</span>`]
+    ];
+    $("nowStats").innerHTML = stats.map(([k, v]) =>
+      `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
+    return;
+  }
+
+  /* ---- No data available ---- */
+  $("nowTemp").innerHTML = "--<sup>°C</sup>";
+  $("nowCond").textContent = "Data langsung tiada";
+  $("nowStats").innerHTML = "";
+  setIcon($("nowIcon"), "cloudy");
+}
+function renderForecast(rows) {
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: TZ }); // YYYY-MM-DD
+  const sorted = rows.slice().sort((a, b) => a.date.localeCompare(b.date)).slice(0, 7);
+  $("days").innerHTML = sorted.map(r => {
+    const dt = new Date(r.date + "T12:00:00");
+    const isToday = r.date === today;
+    const dow = isToday ? "Hari ini" : DAY_SHORT[dt.getDay()];
+    const dnum = pad(dt.getDate()) + " " + MONTH_SHORT[dt.getMonth()];
+    const m = describeBm(r.morning_forecast), a = describeBm(r.afternoon_forecast), n = describeBm(r.night_forecast);
+    const icon = worst([m.icon, a.icon, n.icon]);
+    const dot = { storm: "#ffd166", rain: "#5eb0ff", haze: "#c9b48f", cloudy: "#9aa6bf", clear: "transparent", partly: "transparent", night: "#9aa6bf" };
+    const row = (label, x) => `<div class="prow"><span class="pl">${label}</span><span class="pdot" style="background:${dot[x.icon]}"></span></div>`;
+    return `<div class="day ${isToday ? "today" : ""}" title="${escapeHtml(r.summary_forecast || "")}">
+      <div class="dow">${dow}</div><div class="dnum">${dnum}</div>
+      <div class="icon">${SVG[icon]}</div>
+      <div class="tmax">${r.max_temp != null ? r.max_temp + "°" : "—"}</div>
+      <div class="tmin">${r.min_temp != null ? r.min_temp + "°" : "—"}</div>
+      <div class="periods">${row("Pagi", m)}${row("Ptg", a)}${row("Mlm", n)}</div>
+    </div>`;
+  }).join("");
+}
+
+function renderHourlyForecast(hourly) {
+  if (!hourly || !hourly.time) {
+    $("hourly").innerHTML = "";
+    return;
+  }
+  const now = new Date();
+  const ymd = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0");
+  const hourPrefix = ymd + "T" + String(now.getHours()).padStart(2, "0") + ":00:00";
+  const startIdx = hourly.time.findIndex(t => t >= hourPrefix);
+  const showIdx = startIdx >= 0 ? startIdx : 0;
+  const endIdx = Math.min(showIdx + 12, hourly.time.length);
+  const hours = hourly.time.slice(showIdx, endIdx);
+  const clouds = hourly.cloud_cover ? hourly.cloud_cover.slice(showIdx, endIdx) : [];
+  const precipitation = hourly.precipitation ? hourly.precipitation.slice(showIdx, endIdx) : [];
+  const weathercodes = hourly.weathercode ? hourly.weathercode.slice(showIdx, endIdx) : [];
+  const temperatures = hourly.temperature_2m ? hourly.temperature_2m.slice(showIdx, endIdx) : [];
+  const desc = {
+    0: "Cerah", 1: "Cerah", 2: "Separa", 3: "Berawan",
+    45: "Kabut", 48: "Kabut",
+    51: "Gerimis", 53: "Gerimis", 55: "Gerimis", 56: "Gerimis", 57: "Gerimis",
+    61: "Hujan", 63: "Hujan", 65: "Hujan", 66: "Hujan", 67: "Hujan",
+    71: "Salji", 73: "Salji", 75: "Salji", 77: "Salji",
+    80: "Hujan", 81: "Hujan", 82: "Hujan",
+    85: "Salji", 86: "Salji",
+    95: "Ribut", 96: "Ribut", 99: "Ribut"
+  };
+  const wmoToIcon = {
+    0: "clear", 1: "clear", 2: "partly", 3: "cloudy",
+    45: "haze", 48: "haze",
+    51: "rain", 53: "rain", 55: "rain", 56: "rain", 57: "rain",
+    61: "rain", 63: "rain", 65: "rain", 66: "rain", 67: "rain",
+    71: "rain", 73: "rain", 75: "rain", 77: "rain",
+    80: "rain", 81: "rain", 82: "rain",
+    85: "rain", 86: "rain",
+    95: "storm", 96: "storm", 99: "storm"
+  };
+  let html = `<div class="hourlyHeader"><h2>12 Jam Seterusnya</h2></div><div class="hourlyGrid">`;
+  for (let i = 0; i < hours.length; i++) {
+    const h = new Date(hours[i]);
+    const hour24 = h.getHours();
+    const hour12 = hour24 % 12 || 12;
+    const ampm = hour24 < 12 ? "PG" : "PTG";
+    const temp = temperatures[i] !== undefined ? Math.round(temperatures[i]) : "—";
+    const cloudPct = clouds[i] !== undefined ? clouds[i] : 0;
+    const rainmm = precipitation[i] !== undefined ? precipitation[i].toFixed(1) : "0";
+    const wcode = weathercodes[i] || 0;
+    const iconKey = wmoToIcon[wcode] || "cloudy";
+    const hIcon = SVG[iconKey] || SVG.cloudy;
+    const hDesc = desc[wcode] || "—";
+    const hRain = parseFloat(rainmm) > 0 ? `${rainmm}mm` : "—";
+    const hRainDry = !(parseFloat(rainmm) > 0);
+    const currentHour = now.getHours();
+const nextHour = (currentHour + 1) % 24;
+const isActive = hour24 === nextHour;
+    html += `<div class="hourlyItem${isActive ? " active" : ""}">
+      <div class="hourTime"><span class="hh">${hour12}</span><span class="ap">${ampm}</span></div>
+      <div class="hourIcon">${hIcon}</div>
+      <div class="hourTemp">${temp}°</div>
+      <div class="hourDesc">${hDesc}</div>
+      <div class="hourRain${hRainDry ? " dry" : ""}">${hRain}</div>
+      <div class="hourCloudBar"><div class="hourCloudFill" style="width:${Math.max(0, Math.min(100, cloudPct))}%"></div></div>
+    </div>`;
+  }
+  html += `</div>`;
+  $("hourly").innerHTML = html;
+}
+
+function renderWarnings(list) {
+  if (!list.length) { $("warn").classList.remove("show"); return; }
+  const w = list[0];
+  const title = w.heading_bm || w.heading_en || (w.warning_issue && (w.warning_issue.title_bm || w.warning_issue.title_en)) || "Amaran cuaca";
+  const until = w.valid_to ? new Date(w.valid_to).toLocaleString("en-GB", { timeZone: TZ, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
+  let extra = "";
+  if (w.valid_to) {
+    const abs = Math.max(0, Date.parse(w.valid_to) - Date.now());
+    const rh = Math.floor(abs / 3600000);
+    const rm = Math.floor((abs % 3600000) / 60000);
+    extra = " — berakhir dalam " + (rh > 0 ? rh + " jam " : "") + rm + " min";
+  }
+  $("warnTxt").textContent = title + (until ? ` — sah sehingga ${until}` : "") + extra;
+  $("warn").classList.add("show");
+}
+
+const escapeHtml = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+/* Debug beacon: open the page with #beacon and it reports what it rendered to
+   the local dev server log. Harmless when the server is not running. */
+function beacon(payload) {
+  if (!/beacon/.test(location.hash + location.search)) return;
+  try {
+    fetch("http://127.0.0.1:8080/beacon?d=" + encodeURIComponent(JSON.stringify(payload)), { mode: "no-cors" });
+  } catch (e) { /* ignore */ }
+}
+
+/* Clock */
+function setVh() {
+  document.documentElement.style.setProperty("--vh", window.innerHeight + "px");
+  // Detect resolution and set CSS vars
+  setResolution();
+}
+
+function setResolution() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  // Detect resolution class for adaptive layout
+  if (w >= 1280 && h >= 720) {
+    // HD (1280x720) and above - default layout
+    document.documentElement.className = "resolution-hd";
+  } else if (w >= 800 && h >= 480) {
+    // FWVGA and above - scaled layout
+    document.documentElement.className = "resolution-sd";
+  } else {
+    // Small screens - simplified layout
+    document.documentElement.className = "resolution-small";
+  }
+}
+
+function tickClock() {
+  const now = new Date();
+  $("clock").textContent = now.toLocaleTimeString("en-GB", {
+    timeZone: TZ, hour: "2-digit", minute: "2-digit",
+    second: CONFIG.showSeconds ? "2-digit" : undefined
+  });
+  const d = dateFromYmd(ymdTZ(now));
+  $("today").textContent = DAY_LONG[d.getDay()] + ", " + d.getDate() + " " + MONTH_LONG[d.getMonth()] + " " + d.getFullYear();
+}
+
+/* =====================================================================
+   Main loop
+   ===================================================================== */
+let lastGood = null;
+
+async function refresh() {
+  beacon({ stage: "start" });
+  const errors = [];
+  // Always resolve location fresh - don't rely on cached lastGood location
+  let loc = null;
+  try {
+    loc = await resolveLocation();
+  } catch (e) { errors.push("location: " + e.message); }
+
+  if (!loc) {
+    $("bootMsg").innerHTML = `<div class="err">Tidak dapat menentukan lokasi.<br>Tetapkan CONFIG.manual dalam index.html.</div>`;
+    return;
+  }
+
+  let om = null, obs = null, owm = null, owmFc = null, rows = [], warns = [], nowc = null;
+  const cached = [];   // sources this cycle had to serve from the last-good cache
+
+  /* Rain radar: MET Malaysia CAPPI image via the native same-origin proxy.
+     Reloaded on the same cycle as the weather, which matches MET's 10-minute
+     publication cadence. */
+  if (CONFIG.radar) {
+    loadRadar();
+  } else {
+    const r = $("radar");
+    if (r) r.style.display = "none";
+    document.body.classList.remove("has-radar");
+  }
+  // Resolve preferred model (config default overridden by localStorage)
+  const preferredModel = currentModel();
+  const useOm = preferredModel === "auto" || preferredModel === "openmeteo";
+  const wantOwm = preferredModel === "auto" || preferredModel === "openweathermap";
+  const wantObs = preferredModel === "auto" || preferredModel === "metar";
+  const fetchTasks = [];
+  // Always fetch Open-Meteo: drives the 12-hour strip and supplies daily fallback stats
+  fetchTasks.push(withCache("current", loc, () => fetchCurrent(loc))
+    .then(r => { om = r.value; if (r.cached) cached.push("current"); })
+    .catch(e => errors.push("current: " + e.message)));
+  if (wantOwm) fetchTasks.push(fetchOpenWeatherMap(loc).then(x => owm = x).catch(() => {}));
+  if (preferredModel === "openweathermap") fetchTasks.push(fetchOwmForecast(loc).then(x => owmFc = x).catch(() => {}));
+  if (wantObs) fetchTasks.push(withCache("obs", loc, () => fetchObservation(loc))
+    .then(r => { obs = r.value; if (r.cached) cached.push("metar"); })
+    .catch(() => {}));
+  // 60-minute rain nowcast (Tomorrow.io) for the radar card's outlook line
+  fetchTasks.push(fetchNowcast(loc).then(x => nowc = x).catch(() => {}));
+  fetchTasks.push(fetchMetForecast(loc).then(x => rows = x).catch(e => errors.push("forecast: " + e.message)));
+  jget("https://api.data.gov.my/weather/warning?limit=50", {}, 12000)
+    .then(x => warns = pickWarnings(x, loc.region)).catch(() => {});
+  await Promise.all(fetchTasks);
+
+  fetchHaze(loc).then(hz => renderHaze(hz)).catch(() => renderHaze(null));
+  /* A fresh airport observation outranks the model for "now": the model's
+     point value is often 2-3 C cold and invents drizzle the METAR denies.
+     110 min covers stations that report hourly plus the publication lag; the
+     previous report is still far better ground truth than a wrong model value. */
+  const obsFresh = !!(obs && (Date.now() - obs.time) < 110 * 60000);
+  const preferObs = CONFIG.preferObservation !== false && preferredModel === "auto" && obsFresh;
+  const cur = (!preferObs && useOm) ? om : null;   // OM wins only when no fresh observation
+  renderNow(loc, cur, preferObs ? null : owm, obs, om);
+  renderNowcast(nowc);
+  // 7-day forecast + 12-hour strip follow the selected model where available
+  const fcMode = preferredModel === "openmeteo" ? "om" : (preferredModel === "openweathermap" ? "owm" : "met");
+  if (fcMode === "om" && om && om.daily && om.daily.time && om.daily.time.length) {
+    renderOmDaily(om.daily);
+    $("fcTitle").textContent = "Ramalan 7 hari";
+    $("fcSrc").textContent = "Open-Meteo · ramalan model";
+  } else if (fcMode === "owm" && owmFc && owmFc.length) {
+    renderOwmDaily(owmFc);
+    $("fcTitle").textContent = "Ramalan 5 hari";
+    $("fcSrc").textContent = "OpenWeatherMap · model 5 hari";
+  } else {
+    if (rows.length) {
+      renderForecast(rows);
+      $("fcSrc").textContent = fcStale ? "MET Malaysia · ramalan cache" : "MET Malaysia · ramalan daerah";
+    } else if (om && om.daily && om.daily.time && om.daily.time.length) {
+      // MET mirror gave nothing at all: the model's daily rows keep the strip
+      // populated instead of leaving a hole in the lobby display.
+      renderOmDaily(om.daily);
+      $("fcSrc").textContent = "Open-Meteo · sandaran";
+    } else {
+      $("fcSrc").textContent = "MET Malaysia · ramalan daerah";
+    }
+    $("fcTitle").textContent = "Ramalan 7 hari";
+  }
+  if (preferredModel === "openweathermap" && owmFc && owmFc.length) renderOwmHourly(owmFc);
+  else renderHourlyForecast(om && om.hourly);
+  renderWarnings(warns);
+
+  /* Status is three-state, never five: a lobby panel should not shout about
+     one of five sources failing while the display is complete.
+       ok          - every source answered
+       ok · cache  - complete, but at least one source came from the cache
+       ralat ...   - nothing rendered at all (only then is it a real fault) */
+  const anyOk = !!(om || owm || obs || rows.length);
+  let statusMsg;
+  if (!anyOk) {
+    const first = errors.length ? errors[0] : "";
+    statusMsg = first.startsWith("location") ? "ralat lokasi"
+      : (first ? "ralat" : "tiada data");
+    if (first && !first.startsWith("location")) console.warn("[kiosk] all sources failed:", errors);
+  } else {
+    statusMsg = cached.length ? "ok · cache" : "ok";
+  }
+  $("srcBadge").textContent = cur ? "Open-Meteo"
+    : (owm && !preferObs ? "OpenWeatherMap" : (obs ? "METAR " + obs.station : "tiada data"));
+  $("locBadge").textContent = loc.locationId ? "ramalan: " + loc.name : "ramalan: —";
+  const stampSrc = cur ? "OM " : (owm && !preferObs ? "OWM " : (obs ? "cerapan " : ""));
+  const stampAt = cur ? cur.current.time : ((owm && !preferObs) ? owm.obsTime : (obs ? obs.time : Date.now()));
+  $("updated").textContent = stampSrc + clockHM(stampAt) + " · "
+    + "dikemas kini " + new Date().toLocaleTimeString("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit" });
+  $("status").textContent = statusMsg;
+  $("status").className = anyOk ? "ok" : "err";
+  $("srcBadge").classList.toggle("stale", !anyOk);
+  // Weather model selector button (cycles auto -> openmeteo -> openweathermap -> metar)
+  const curIdx = MODEL_ORDER.indexOf(preferredModel);
+  const nextModel = MODEL_ORDER[(curIdx + 1) % MODEL_ORDER.length];
+  const modelBadge = $("modelBadge");
+  modelBadge.textContent = "model: " + (MODEL_LABEL[preferredModel] || "auto");
+  modelBadge.onclick = function () {
+    try { localStorage.setItem("weatherModel", nextModel); } catch (e) { /* ignore */ }
+    refresh();   // re-render in place — no page reload needed, much faster
+  };
+
+  if (anyOk) {
+    lastGood = { loc, at: Date.now() };
+    $("boot").classList.add("hide");
+  }
+
+  beacon({
+    stage: "rendered",
+    loc: { id: loc.locationId, name: loc.name, via: loc.via, km: loc.approxKm },
+    current: cur ? {
+      temp: cur.current.temperature_2m,
+      code: cur.current.weather_code,
+      hum: cur.current.relative_humidity_2m
+    } : null,
+    obs: obs ? { station: obs.id, temp: obs.temp, wx: obs.wx.join(" "), clouds: obs.clouds } : null,
+    days: rows.length,
+    firstDay: rows[0] || null,
+    warnings: warns.length,
+    cached: cached,
+    status: statusMsg,
+    errors
+  });
+}
+
+setVh();
+setResolution();
+tickClock();
+setInterval(tickClock, 1000);
+window.addEventListener("resize", setVh);
+
+let lastRefreshAt = 0;
+async function safeRefresh() {
+  try { await refresh(); } finally { lastRefreshAt = Date.now(); }
+}
+
+safeRefresh();
+setInterval(safeRefresh, CONFIG.refreshMinutes * 60 * 1000);
+
+// Re-check immediately when the screen wakes / tab becomes visible.
+document.addEventListener("visibilitychange", () => { if (!document.hidden) safeRefresh(); });
+setInterval(() => {
+  if (!document.hidden && Date.now() - lastRefreshAt > CONFIG.refreshMinutes * 60 * 1000) safeRefresh();
+}, 60000);
+
+/* =====================================================================
+   Kiosk housekeeping — keeps a 24/7 lobby panel healthy.
+   ===================================================================== */
+const NIGHT = CONFIG.nightDim || { from: "23:30", to: "06:30", level: 0.55 };
+const BURNIN = CONFIG.burnIn || { drift: 2, blankHeader: true, blankAt: 45, blankSec: 30 };
+let nightlyReloaded = null, blankedHour = -1;
+
+function hmToMin(s) {
+  const p = String(s).split(":");
+  return (+p[0] || 0) * 60 + (+p[1] || 0);
+}
+
+/* Dim the panel overnight: less light spill in a closed lobby, and less
+   backlight load on the panel. The overlay never intercepts input. */
+function applyNightDim() {
+  const el = $("dim");
+  if (!el) return;
+  const n = new Date();
+  const now = n.getHours() * 60 + n.getMinutes();
+  const a = hmToMin(NIGHT.from), b = hmToMin(NIGHT.to);
+  const on = NIGHT.from === NIGHT.to ? false
+    : (a <= b ? (now >= a && now < b) : (now >= a || now < b));
+  el.style.opacity = on ? String(NIGHT.level == null ? 0.55 : NIGHT.level) : "0";
+}
+
+/* Burn-in care: walk the whole layout through four small offsets. */
+const DRIFT = BURNIN.drift == null ? 2 : BURNIN.drift;
+const SHIFTS = [[0, 0], [DRIFT, 0], [DRIFT, DRIFT], [0, DRIFT]];
+let shiftIdx = 0;
+function applyDrift() {
+  const s = SHIFTS[shiftIdx++ % SHIFTS.length];
+  const st = document.documentElement.style;
+  st.setProperty("--shift-x", s[0] + "px");
+  st.setProperty("--shift-y", s[1] + "px");
+}
+
+function blankHeader() {
+  const app = $("app");
+  if (!app) return;
+  app.classList.add("hdr-off");
+  setTimeout(function () { app.classList.remove("hdr-off"); },
+             (BURNIN.blankSec == null ? 30 : BURNIN.blankSec) * 1000);
+}
+
+/* Heartbeat for the native shell: no beat for 4 min and it rebuilds the view. */
+function beat() {
+  try {
+    if (window.AndroidInterface && typeof window.AndroidInterface.beat === "function") {
+      window.AndroidInterface.beat();
+    }
+  } catch (e) { /* older APK without the bridge */ }
+}
+
+function ageText(ms) {
+  const m = Math.floor(ms / 60000);
+  return m < 60 ? m + " min" : Math.floor(m / 60) + " j " + (m % 60) + " m";
+}
+
+/* Amber past 20 min, red past 45. refresh() rewrites #status every cycle, so
+   this only takes over once the data really is too old to trust. */
+function paintStaleness() {
+  const el = $("status"), badge = $("srcBadge");
+  if (!el || !lastGood || !lastGood.at) return;
+  const age = Date.now() - lastGood.at;
+  if (age >= 45 * 60000) {
+    el.textContent = "basi " + ageText(age);
+    el.className = "err";
+    if (badge) badge.classList.add("stale");
+  } else if (age >= 20 * 60000) {
+    el.textContent = "basi " + ageText(age);
+    el.className = "aging";
+  }
+}
+
+applyNightDim();
+applyDrift();
+beat();
+
+setInterval(function () {
+  applyNightDim();
+  paintStaleness();
+  beat();
+  // Drop a stale rain outlook: keeps the line through a transient upstream
+  // failure, but never shows a 40-minute-old "hujan ±12 min lagi".
+  if (nowcastAt && Date.now() - nowcastAt > 20 * 60000) {
+    const n = $("radarNow");
+    if (n) n.textContent = "";
+    nowcastAt = 0;
+  }
+  const n = new Date();
+  const hourKey = ymdTZ(n) + " " + n.getHours();
+  // One short blank per hour, to rest the static header pixels.
+  if (BURNIN.blankHeader && n.getMinutes() === (BURNIN.blankAt == null ? 45 : BURNIN.blankAt)
+      && blankedHour !== hourKey) {
+    blankedHour = hourKey;
+    blankHeader();
+  }
+  // Reload once a night: clears WebView memory while the lobby is empty.
+  if (n.getHours() === 4 && n.getMinutes() < 5 && nightlyReloaded !== hourKey) {
+    nightlyReloaded = hourKey;
+    location.reload();
+  }
+}, 30000);
+
+setInterval(applyDrift, 30 * 60 * 1000);
+
+// Android TV remote — expose a small "Home" button action.
+// When clicked, request to exit the kiosk back to the Android home screen.
+window.android = {
+  requestExit: function() {
+    // Try the AndroidInterface if the APK has it wired up; otherwise just close the tab.
+    if (window.AndroidInterface && typeof window.AndroidInterface.requestExit === "function") {
+      window.AndroidInterface.requestExit();
+    } else {
+      window.close();
+    }
+  }
+};
+</script>
+</body>
+</html>
