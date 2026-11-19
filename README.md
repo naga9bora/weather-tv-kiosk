@@ -32,7 +32,9 @@ tiny fullscreen kiosk app. No cloud account, no API key, no PC needed at runtime
 
 Observations come from `aviationweather.gov` (keyless). The old feed on
 `metar.vatsim.net` is **simulated flight-sim weather** and is no longer used.
-Tomorrow.io's key lives in `app.py` and `MainActivity.java`, not in the page.
+Both keyed sources are proxied through the shell, so no key appears in the page:
+Tomorrow.io (`/api/nowcast`) and OpenWeatherMap (`/api/owm/current`,
+`/api/owm/forecast`). `app.py` implements the same routes for local preview.
 
 MET also runs its own API at `api.met.gov.my`, which hands out free tokens
 (1,000 requests/day). It is supported — put the token in `CONFIG.metToken` and the
@@ -186,6 +188,7 @@ configured in `CONFIG`:
 | Source cache | `CACHE_TTL_MS` (12 h) | Open-Meteo current, METAR and MET forecast rows are kept in `localStorage`; a failed fetch re-renders the last good copy, keeping its original timestamps. |
 | Status badge | 3 states | `ok`, `ok · cache` (complete, some data carried over) and `ralat` only when nothing rendered at all. A single dead upstream no longer paints the panel red. |
 | Staleness badge | 20 / 45 min | The footer status turns amber `basi N min` after 20 min without a successful cycle and red after 45, so a frozen-but-painted screen is obvious. |
+| Dead-man ping | `CONFIG.healthPing` | Optional. Pings a healthchecks.io URL at most once a day after a good cycle, and `<url>/fail` after three empty cycles, so a dark panel reaches your phone. |
 
 ## Notes / limitations
 
@@ -212,7 +215,18 @@ python tools\build_html.py     # static/ -> dist/index.html
 python tools\build_apk.py      # dist/ + android/ -> dist/weather-kiosk.apk
 ```
 
-Two keys live in the source: the Tomorrow.io key in `app.py` and
-`MainActivity.java` (kept out of the page on purpose) and the OpenWeatherMap key
-in `CONFIG.openWeatherMapKey`. If this repository is ever made public, both must
-be moved to environment variables first.
+Two keys live in the source: the Tomorrow.io key and the OpenWeatherMap key, both
+in `app.py` and `MainActivity.java` (never in the page). This repository is
+private; if it is ever made public, rotate both keys first.
+
+## Health check
+
+```powershell
+python tools\smoke.py            # 8 assertions against the running app
+python tools\smoke.py --json     # raw probe values
+```
+
+It connects over adb, forwards the WebView devtools socket, and checks that the
+page renders, the status is not an error, the forecast strip has cards, the
+temperature is present, the `AndroidInterface` bridge is alive, the viewport is
+1280x720 and nothing is clipped. Exit code 1 means something needs attention.

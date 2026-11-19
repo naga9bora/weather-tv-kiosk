@@ -276,9 +276,10 @@ const CONFIG = {
   // used instead of the public data.gov.my mirror. See README for how to get one.
   metToken: null,
 
-  // OpenWeatherMap API key (free tier at openweathermap.org)
-  // Shows current conditions at exact coordinates - more local than Subang METAR
-  openWeatherMapKey: "REDACTED_OWM_KEY",
+  // OpenWeatherMap API key. It is **not** needed here: the shell proxies
+  // /api/owm/current and /api/owm/forecast and holds the key natively, the same
+  // way the Tomorrow.io key is kept out of this file. Leave this null.
+  openWeatherMapKey: null,
 
   refreshMinutes: 10,   // how often to re-fetch weather + location
   warnWindowHours: 24,   // only surface MET warnings issued within this window
@@ -295,7 +296,14 @@ const CONFIG = {
 
   // Rain radar panel - MET Malaysia animated GIF. radarRegion: "my" (Malaysia) | "sem" (Peninsula) | "east" (Sabah & Sarawak)
   radar: true,
-  radarRegion: "my"
+  radarRegion: "my",
+
+  // Optional dead-man switch. Paste a healthchecks.io ping URL (or any URL that
+  // treats a GET as "alive"); the page pings it at most once a day after a
+  // successful cycle, and appends /fail after three empty cycles in a row, so a
+  // dark panel reaches your phone instead of waiting for someone to notice.
+  // Leave null to disable.
+  healthPing: null   // e.g. "https://hc-ping.com/00000000-0000-0000-0000-000000000000"
 };
 
 const TZ = "Asia/Kuala_Lumpur";
@@ -394,7 +402,12 @@ function renderHaze(hz) {
     4: "Kualiti udara berbahaya. Kekal di dalam rumah."
   }[hz.band] || "";
   $("hazeDesc").textContent = desc;
+  $("hazeDesc").style.display = "";
   el.style.display = "flex";
+  // Last resort: on a warning day the card is ~40 px shorter. The IPU number,
+  // band and scale are the real information, so drop the guidance line rather
+  // than clip it mid-glyph.
+  if (el.scrollHeight > el.clientHeight + 1) $("hazeDesc").style.display = "none";
 }
 
 function jget(url, opts = {}, timeout = 15000) {
@@ -1027,8 +1040,9 @@ const OWM_TO_ICON = {
 };
 
 async function fetchOpenWeatherMap(loc) {
-  if (!CONFIG.openWeatherMapKey || loc.lat == null || loc.lon == null) return null;
-  const u = `https://api.openweathermap.org/data/2.5/weather?lat=${loc.lat}&lon=${loc.lon}&appid=${CONFIG.openWeatherMapKey}&units=metric`;
+  if (loc.lat == null || loc.lon == null) return null;
+  // Proxied by the shell (/api/owm/current): the API key stays out of the page.
+  const u = `/api/owm/current?lat=${loc.lat}&lon=${loc.lon}`;
   const d = await jget(u);
   const w = d.weather[0];
   let icon = OWM_TO_ICON[w.id] || "cloudy";
@@ -1053,8 +1067,8 @@ async function fetchOpenWeatherMap(loc) {
 
 /* OpenWeatherMap 5-day/3-hour forecast — used when the model selector prefers OWM */
 async function fetchOwmForecast(loc) {
-  if (!CONFIG.openWeatherMapKey || loc.lat == null || loc.lon == null) return null;
-  const u = `https://api.openweathermap.org/data/2.5/forecast?lat=${loc.lat}&lon=${loc.lon}&appid=${CONFIG.openWeatherMapKey}&units=metric`;
+  if (loc.lat == null || loc.lon == null) return null;
+  const u = `/api/owm/forecast?lat=${loc.lat}&lon=${loc.lon}`;
   const d = await jget(u);
   return (d.list || []).map(e => ({
     dt: e.dt * 1000,
@@ -1584,6 +1598,7 @@ async function refresh() {
   $("status").textContent = statusMsg;
   $("status").className = anyOk ? "ok" : "err";
   $("srcBadge").classList.toggle("stale", !anyOk);
+  healthPing(anyOk);
   // Weather model selector button (cycles auto -> openmeteo -> openweathermap -> metar)
   const curIdx = MODEL_ORDER.indexOf(preferredModel);
   const nextModel = MODEL_ORDER[(curIdx + 1) % MODEL_ORDER.length];
@@ -1714,6 +1729,28 @@ function paintStaleness() {
 applyNightDim();
 applyDrift();
 beat();
+
+/* Dead-man switch (optional, CONFIG.healthPing). At most one "alive" ping a day
+   after a good cycle; after three empty cycles in a row, ping <url>/fail so an
+   external check can alert you. Everything is best-effort. */
+let badCycles = 0;
+function healthPing(ok) {
+  const url = CONFIG.healthPing;
+  if (!url) return;
+  badCycles = ok ? 0 : badCycles + 1;
+  let last = 0;
+  try { last = Number(localStorage.getItem("healthPingAt") || 0); } catch (e) { /* ignore */ }
+  const now = Date.now();
+  const due = ok ? (now - last > 24 * 3600e3) : badCycles === 3;
+  if (!due) return;
+  const target = ok ? url : String(url).replace(/\/$/, "") + "/fail";
+  try {
+    fetch(target, { mode: "no-cors", cache: "no-store" }).catch(function () {});
+  } catch (e) { /* offline: the next cycle tries again */ }
+  if (ok) {
+    try { localStorage.setItem("healthPingAt", String(now)); } catch (e) { /* ignore */ }
+  }
+}
 
 setInterval(function () {
   applyNightDim();

@@ -210,6 +210,9 @@ public class MainActivity extends Activity {
                     if ("/api/nowcast".equals(path) || "/api/metar".equals(path)) {
                         return serveWeather(path, u);
                     }
+                    if (path.startsWith("/api/owm/")) {
+                        return serveWeather(path, u);
+                    }
                     if (path.startsWith("/api/radar/")) {
                         // MET radar GIF, proxied so the page gets it from this origin.
                         String rest = path.substring("/api/radar/".length());
@@ -444,7 +447,8 @@ public class MainActivity extends Activity {
     /* Tomorrow.io (free tier) 60-minute precipitation nowcast and real NOAA
      * METAR observations. Both are proxied: the Tomorrow key must not live in
      * the page, and aviationweather.gov sends no CORS headers. VATSIM's METAR
-     * feed is simulated flight-sim weather, so it is deliberately not used. */
+     * feed is simulated flight-sim weather, so it is deliberately not used.
+     * OpenWeatherMap is proxied the same way (see OWM_* below). */
     private static final String TOMORROW_KEY = "REDACTED_TOMORROW_KEY";
     private static final String TOMORROW_URL =
             "https://api.tomorrow.io/v4/weather/forecast?location=%s,%s&timesteps=1m"
@@ -453,27 +457,49 @@ public class MainActivity extends Activity {
     private static final String METAR_URL =
             "https://aviationweather.gov/api/data/metar?ids=%s&format=raw&hours=2";
 
+    /* OpenWeatherMap, proxied for the same reason as Tomorrow.io: the key must
+     * not ship inside the page, which lives in plain text on /sdcard. */
+    private static final String OWM_KEY = "REDACTED_OWM_KEY";
+    private static final String OWM_CURRENT_URL =
+            "https://api.openweathermap.org/data/2.5/weather?lat=%.4f&lon=%.4f"
+            + "&units=metric&appid=" + OWM_KEY;
+    private static final String OWM_FORECAST_URL =
+            "https://api.openweathermap.org/data/2.5/forecast?lat=%.4f&lon=%.4f"
+            + "&units=metric&appid=" + OWM_KEY;
+
+    /** Validated lat/lon query params, or null when missing/invalid. */
+    private static double[] latLon(Uri uri) {
+        String lat = uri.getQueryParameter("lat");
+        String lon = uri.getQueryParameter("lon");
+        if (lat == null || lon == null) return null;
+        try {
+            double la = Double.parseDouble(lat);
+            double lo = Double.parseDouble(lon);
+            if (la < -90 || la > 90 || lo < -180 || lo > 180) return null;
+            return new double[]{la, lo};
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
     private WebResourceResponse serveWeather(String path, Uri uri) {
         Map<String, String> h = new HashMap<>();
         h.put("Access-Control-Allow-Origin", "*");
         try {
             String url, type;
             if ("/api/nowcast".equals(path)) {
-                String lat = uri.getQueryParameter("lat");
-                String lon = uri.getQueryParameter("lon");
-                if (lat == null || lon == null) return badRequest(h, "bad lat/lon");
-                double la, lo;
-                try {
-                    la = Double.parseDouble(lat);
-                    lo = Double.parseDouble(lon);
-                } catch (NumberFormatException e) {
-                    return badRequest(h, "bad lat/lon");
-                }
-                if (la < -90 || la > 90 || lo < -180 || lo > 180) return badRequest(h, "bad lat/lon");
+                double[] ll = latLon(uri);
+                if (ll == null) return badRequest(h, "bad lat/lon");
                 // Locale.US keeps the decimal point as '.' on this device.
                 url = String.format(java.util.Locale.US, TOMORROW_URL,
-                        String.format(java.util.Locale.US, "%.4f", la),
-                        String.format(java.util.Locale.US, "%.4f", lo));
+                        String.format(java.util.Locale.US, "%.4f", ll[0]),
+                        String.format(java.util.Locale.US, "%.4f", ll[1]));
+                type = "application/json";
+            } else if (path.startsWith("/api/owm/")) {
+                double[] ll = latLon(uri);
+                if (ll == null) return badRequest(h, "bad lat/lon");
+                String fmt = "/api/owm/forecast".equals(path) ? OWM_FORECAST_URL : OWM_CURRENT_URL;
+                url = String.format(java.util.Locale.US, fmt, ll[0], ll[1]);
                 type = "application/json";
             } else {
                 String ids = uri.getQueryParameter("ids");

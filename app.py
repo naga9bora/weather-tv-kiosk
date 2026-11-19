@@ -58,6 +58,16 @@ TOMORROW_URL = ("https://api.tomorrow.io/v4/weather/forecast"
 # flight-sim weather, not the real airport report). Keyless, but no CORS.
 METAR_URL = "https://aviationweather.gov/api/data/metar?ids=%s&format=raw&hours=2"
 
+# OpenWeatherMap: proxied like Tomorrow.io so the key never lands in the page
+# (which is plain text on the TV's sdcard). The shell keeps the same key.
+OWM_KEY = "REDACTED_OWM_KEY"
+OWM_URLS = {
+    "/api/owm/current": "https://api.openweathermap.org/data/2.5/weather"
+                        "?lat=%.4f&lon=%.4f&units=metric&appid=" + OWM_KEY,
+    "/api/owm/forecast": "https://api.openweathermap.org/data/2.5/forecast"
+                         "?lat=%.4f&lon=%.4f&units=metric&appid=" + OWM_KEY,
+}
+
 
 def lan_ips():
     ips = set()
@@ -85,6 +95,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if path.rstrip("/") == "/api/haze":
             return self.proxy_haze()
         if path.rstrip("/") in ("/api/nowcast", "/api/metar"):
+            return self.proxy_weather(path, self.path)
+        if path.rstrip("/") in OWM_URLS:
             return self.proxy_weather(path, self.path)
         if path.startswith("/api/rainviewer/"):
             return self.proxy_rainviewer(path, self.path)
@@ -136,14 +148,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_error(502, "rainviewer unavailable: %s" % e)
 
     def proxy_weather(self, path, full):
-        """Tomorrow.io minute nowcast and NOAA METAR, same-origin for the kiosk.
+        """Tomorrow.io minute nowcast, NOAA METAR and OpenWeatherMap, same-origin.
 
-        Both upstreams are either keyed in page source or missing CORS, so the
-        kiosk only ever calls this server. Arguments are strictly validated.
+        The keyed upstreams must not be reachable from page source, and
+        aviationweather.gov sends no CORS headers, so the kiosk only ever calls
+        this server. Arguments are strictly validated.
         """
         qs = urllib.parse.parse_qs(urllib.parse.urlsplit(full).query)
+        path = path.rstrip("/")
         try:
-            if path.rstrip("/") == "/api/nowcast":
+            if path == "/api/nowcast" or path in OWM_URLS:
                 try:
                     lat = float((qs.get("lat") or [""])[0])
                     lon = float((qs.get("lon") or [""])[0])
@@ -153,9 +167,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 if not (-90 <= lat <= 90 and -180 <= lon <= 180):
                     self.send_error(400, "bad lat/lon")
                     return
-                url = TOMORROW_URL % (round(lat, 4), round(lon, 4))
+                if path == "/api/nowcast":
+                    url = TOMORROW_URL % (round(lat, 4), round(lon, 4))
+                    maxage = 120
+                else:
+                    url = OWM_URLS[path] % (round(lat, 4), round(lon, 4))
+                    maxage = 300
                 ctype = "application/json; charset=utf-8"
-                maxage = 120
             else:
                 ids = (qs.get("ids") or [""])[0].upper()
                 if not ids or len(ids) > 40 or any(c not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789," for c in ids):
