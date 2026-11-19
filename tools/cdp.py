@@ -120,10 +120,11 @@ def page_target():
     if not ts:
         raise SystemExit("no page target; is Chrome running?")
     # Prefer the dashboard served over http; skip dead file:// error tabs.
+    # Any http origin works: local preview, a LAN host, or the kiosk's fake
+    # origin (http://weather.local).
     for t in ts:
         u = t.get("url") or ""
-        if u.startswith("http://127.0.0.1:8080") or u.startswith("http://192.168.") \
-                or u.startswith("http://weather.local"):
+        if u.startswith("http://") and ("8080" in u or "weather" in u):
             return t
     for t in ts:
         if "weather" in (t.get("url") or ""):

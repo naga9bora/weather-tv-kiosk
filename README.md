@@ -146,7 +146,7 @@ Dark Matter basemap. It is non-interactive (no drag/zoom/keyboard) for lobby use
 | --- | --- | --- |
 | Frames | `api.rainviewer.com/public/weather-maps.json` | latest `radar.past[-1]` |
 | Tiles | `tilecache.rainviewer.com<path>/256/{z}/{x}/{y}/2/1_1.png` | colour 2, smoothed |
-| Basemap | `{s}.basemaps.cartocdn.com/dark_nolabels` and `dark_only_labels`, `…?key=…` | CARTO key; `?key=` is the only working param |
+| Basemap | `/api/basemap/dark_nolabels/...` and `.../labels/...` | CARTO tiles, proxied so the key stays in the shell; `?key=` never reaches the page |
 | Fallbacks | Esri Dark Gray Canvas → OSM (CSS-darkened) | keyless, after 3 `tileerror` |
 
 Both the frame list and the tiles are served **same-origin** by
@@ -217,6 +217,10 @@ configured in `CONFIG`:
 
 Tracked: `static/`, `android/` (manifest, Java, icons), `data/`, `tools/`,
 `scripts/`, `docs/` (screenshots), `app.py`, `native/`, `README.md`.
+
+`AGENTS.md` holds the working notes for coding agents: hard constraints, the
+build/deploy/verify loop, layout invariants and the secrets rules. Read it before
+editing the page.
 
 Not tracked (generated or private): `.sdk/`, `build/`, `dist/`,
 `android/assets/`, `cache/`, `__pycache__/`, `keys.local.json`,
