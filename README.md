@@ -215,9 +215,21 @@ python tools\build_html.py     # static/ -> dist/index.html
 python tools\build_apk.py      # dist/ + android/ -> dist/weather-kiosk.apk
 ```
 
-Two keys live in the source: the Tomorrow.io key and the OpenWeatherMap key, both
-in `app.py` and `MainActivity.java` (never in the page). This repository is
-private; if it is ever made public, rotate both keys first.
+### API keys
+
+No key is committed. Both are read from the environment (`TOMORROW_KEY`,
+`OWM_KEY`) or from `keys.local.json` in the project root (git-ignored):
+
+```json
+{ "tomorrow": "...", "owm": "..." }
+```
+
+`app.py` reads them at startup for local preview. `tools/build_apk.py` writes
+them into `android/assets/keys.properties`, which `MainActivity` loads, so the
+installed APK still has them while the repository and the page never do. A
+missing key fails the APK build with an explanation; on a running APK the
+affected proxy replies `503 Not Configured` and the kiosk just drops that panel
+element.
 
 ## Health check
 

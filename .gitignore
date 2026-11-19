@@ -13,5 +13,9 @@ __pycache__/
 # local caches
 cache/
 
+# API keys (Tomorrow.io, OpenWeatherMap). Never commit; see README.
+keys.local.json
+.env
+
 # generated icon/banner previews
 *.apk

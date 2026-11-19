@@ -7,6 +7,7 @@ else is Python/Java that is already on the machine.
 """
 
 import glob
+import json
 import os
 import shutil
 import subprocess
@@ -39,6 +40,25 @@ def find(pattern):
     if not hits:
         raise SystemExit(f"missing {pattern} under {SDK} - run tools/fetch_sdk.py")
     return hits[0]
+
+
+def load_keys():
+    """API keys from keys.local.json (git-ignored) or the environment.
+
+    They are written into android/assets/keys.properties so the APK still ships
+    them, but the repository never contains them.
+    """
+    keys = {}
+    path = os.path.join(ROOT, "keys.local.json")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            keys.update(json.load(f))
+    except (IOError, OSError, ValueError):
+        pass
+    for env, name in (("TOMORROW_KEY", "tomorrow"), ("OWM_KEY", "owm")):
+        if os.environ.get(env):
+            keys[name] = os.environ[env]
+    return keys
 
 
 def java_tool(name):
@@ -85,6 +105,20 @@ def main():
     assets = os.path.join(ANDROID, "assets")
     os.makedirs(assets, exist_ok=True)
     shutil.copyfile(os.path.join(DIST, "index.html"), os.path.join(assets, "index.html"))
+
+    # --- API keys -------------------------------------------------------------
+    keys = load_keys()
+    missing = [n for n in ("tomorrow", "owm") if not keys.get(n)]
+    if missing:
+        raise SystemExit(
+            "missing API key(s): %s\n"
+            "create keys.local.json in the project root:\n"
+            '  {"tomorrow": "...", "owm": "..."}\n'
+            "or set TOMORROW_KEY and OWM_KEY in the environment."
+            % ", ".join(missing))
+    with open(os.path.join(assets, "keys.properties"), "w", encoding="utf-8") as f:
+        for name in ("tomorrow", "owm"):
+            f.write("%s=%s\n" % (name, keys[name]))
 
     res_dir = os.path.join(ANDROID, "res")
     compiled_res = os.path.join(BUILD, "res.zip")

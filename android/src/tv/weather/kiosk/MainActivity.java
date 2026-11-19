@@ -30,6 +30,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.util.Properties;
 import java.net.URL;
 import java.security.KeyStore;
 import java.security.cert.CertificateFactory;
@@ -108,6 +109,7 @@ public class MainActivity extends Activity {
             WebView.setWebContentsDebuggingEnabled(true);
         }
 
+        loadKeys();
         web = buildWebView();
         installBridge(web);
         setContentView(web);
@@ -448,24 +450,36 @@ public class MainActivity extends Activity {
      * METAR observations. Both are proxied: the Tomorrow key must not live in
      * the page, and aviationweather.gov sends no CORS headers. VATSIM's METAR
      * feed is simulated flight-sim weather, so it is deliberately not used.
-     * OpenWeatherMap is proxied the same way (see OWM_* below). */
-    private static final String TOMORROW_KEY = "REDACTED_TOMORROW_KEY";
+     *
+     * No API key is compiled into this file. They arrive in the packaged asset
+     * keys.properties, which tools/build_apk.py generates from keys.local.json
+     * or the TOMORROW_KEY / OWM_KEY environment variables, so the repository
+     * never contains credentials. */
     private static final String TOMORROW_URL =
             "https://api.tomorrow.io/v4/weather/forecast?location=%s,%s&timesteps=1m"
-            + "&units=metric&fields=precipitationProbability,rainIntensity,weatherCode"
-            + "&apikey=" + TOMORROW_KEY;
+            + "&units=metric&fields=precipitationProbability,rainIntensity,weatherCode";
     private static final String METAR_URL =
             "https://aviationweather.gov/api/data/metar?ids=%s&format=raw&hours=2";
 
     /* OpenWeatherMap, proxied for the same reason as Tomorrow.io: the key must
      * not ship inside the page, which lives in plain text on /sdcard. */
-    private static final String OWM_KEY = "REDACTED_OWM_KEY";
     private static final String OWM_CURRENT_URL =
             "https://api.openweathermap.org/data/2.5/weather?lat=%.4f&lon=%.4f"
-            + "&units=metric&appid=" + OWM_KEY;
+            + "&units=metric";
     private static final String OWM_FORECAST_URL =
             "https://api.openweathermap.org/data/2.5/forecast?lat=%.4f&lon=%.4f"
-            + "&units=metric&appid=" + OWM_KEY;
+            + "&units=metric";
+
+    private Properties keys = new Properties();
+
+    /** Reads android/assets/keys.properties, generated at build time. */
+    private void loadKeys() {
+        try (InputStream in = getAssets().open("keys.properties")) {
+            keys.load(in);
+        } catch (IOException e) {
+            Log.w(TAG, "keys.properties missing - keyed proxies will reply 503");
+        }
+    }
 
     /** Validated lat/lon query params, or null when missing/invalid. */
     private static double[] latLon(Uri uri) {
@@ -490,16 +504,22 @@ public class MainActivity extends Activity {
             if ("/api/nowcast".equals(path)) {
                 double[] ll = latLon(uri);
                 if (ll == null) return badRequest(h, "bad lat/lon");
+                String key = keys.getProperty("tomorrow", "");
+                if (key.isEmpty()) return noConfig(h, "tomorrow");
                 // Locale.US keeps the decimal point as '.' on this device.
                 url = String.format(java.util.Locale.US, TOMORROW_URL,
                         String.format(java.util.Locale.US, "%.4f", ll[0]),
-                        String.format(java.util.Locale.US, "%.4f", ll[1]));
+                        String.format(java.util.Locale.US, "%.4f", ll[1]))
+                        + "&apikey=" + key;
                 type = "application/json";
             } else if (path.startsWith("/api/owm/")) {
                 double[] ll = latLon(uri);
                 if (ll == null) return badRequest(h, "bad lat/lon");
+                String key = keys.getProperty("owm", "");
+                if (key.isEmpty()) return noConfig(h, "owm");
                 String fmt = "/api/owm/forecast".equals(path) ? OWM_FORECAST_URL : OWM_CURRENT_URL;
-                url = String.format(java.util.Locale.US, fmt, ll[0], ll[1]);
+                url = String.format(java.util.Locale.US, fmt, ll[0], ll[1])
+                        + "&appid=" + key;
                 type = "application/json";
             } else {
                 String ids = uri.getQueryParameter("ids");
@@ -528,6 +548,13 @@ public class MainActivity extends Activity {
         h.put("Content-Type", "text/plain; charset=utf-8");
         return new WebResourceResponse("text/plain", "utf-8", 400, "Bad Request", h,
                 new ByteArrayInputStream(msg.getBytes()));
+    }
+
+    /** No API key in the packaged keys.properties: say so instead of 502. */
+    private static WebResourceResponse noConfig(Map<String, String> h, String which) {
+        h.put("Content-Type", "text/plain; charset=utf-8");
+        return new WebResourceResponse("text/plain", "utf-8", 503, "Not Configured", h,
+                new ByteArrayInputStream((which + " key not configured").getBytes()));
     }
 
     /* Native proxy to JAS/APIMS for the kiosk page. The upstream only allows

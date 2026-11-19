@@ -48,24 +48,42 @@ RADAR_FILES = {
 # Tomorrow.io (free tier): 60 one-minute precipitation steps, used for the
 # "hujan ±N min" line on the radar card. Proxied so the key stays out of the
 # page source and the kiosk only ever talks to its own origin.
-TOMORROW_KEY = "REDACTED_TOMORROW_KEY"
+#
+# No key is kept in this file: read TOMORROW_KEY / OWM_KEY from the
+# environment, or from keys.local.json next to this file (git-ignored) for
+# local preview. The APK gets them the same way at build time.
+def _load_keys():
+    keys = {}
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "keys.local.json")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            keys.update(_json.load(f))
+    except (IOError, OSError, ValueError):
+        pass
+    for env, name in (("TOMORROW_KEY", "tomorrow"), ("OWM_KEY", "owm")):
+        if os.environ.get(env):
+            keys[name] = os.environ[env]
+    return keys
+
+
+KEYS = _load_keys()
+
 TOMORROW_URL = ("https://api.tomorrow.io/v4/weather/forecast"
                 "?location=%s,%s&timesteps=1m&units=metric"
-                "&fields=precipitationProbability,rainIntensity,weatherCode"
-                "&apikey=" + TOMORROW_KEY)
+                "&fields=precipitationProbability,rainIntensity,weatherCode")
 
 # NOAA aviation weather: real METAR observations (VATSIM's feed is simulated
 # flight-sim weather, not the real airport report). Keyless, but no CORS.
 METAR_URL = "https://aviationweather.gov/api/data/metar?ids=%s&format=raw&hours=2"
 
 # OpenWeatherMap: proxied like Tomorrow.io so the key never lands in the page
-# (which is plain text on the TV's sdcard). The shell keeps the same key.
-OWM_KEY = "REDACTED_OWM_KEY"
+# (which is plain text on the TV's sdcard).
 OWM_URLS = {
     "/api/owm/current": "https://api.openweathermap.org/data/2.5/weather"
-                        "?lat=%.4f&lon=%.4f&units=metric&appid=" + OWM_KEY,
+                        "?lat=%.4f&lon=%.4f&units=metric",
     "/api/owm/forecast": "https://api.openweathermap.org/data/2.5/forecast"
-                         "?lat=%.4f&lon=%.4f&units=metric&appid=" + OWM_KEY,
+                         "?lat=%.4f&lon=%.4f&units=metric",
 }
 
 
@@ -168,10 +186,20 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     self.send_error(400, "bad lat/lon")
                     return
                 if path == "/api/nowcast":
-                    url = TOMORROW_URL % (round(lat, 4), round(lon, 4))
+                    key = KEYS.get("tomorrow")
+                    if not key:
+                        self.send_error(503, "Tomorrow.io key not configured")
+                        return
+                    url = (TOMORROW_URL % (round(lat, 4), round(lon, 4))
+                           + "&apikey=" + key)
                     maxage = 120
                 else:
-                    url = OWM_URLS[path] % (round(lat, 4), round(lon, 4))
+                    key = KEYS.get("owm")
+                    if not key:
+                        self.send_error(503, "OpenWeatherMap key not configured")
+                        return
+                    url = (OWM_URLS[path] % (round(lat, 4), round(lon, 4))
+                           + "&appid=" + key)
                     maxage = 300
                 ctype = "application/json; charset=utf-8"
             else:
