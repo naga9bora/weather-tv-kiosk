@@ -1,6 +1,8 @@
 """Build and sign the kiosk APK without Gradle.
 
     python tools/build_apk.py
+    python tools/build_apk.py --allow-keyless   # panel without provider keys
+    python tools/build_apk.py --debug           # keep WebView DevTools on
 
 Requires the SDK bits in .sdk/ (platform android.jar + build-tools). Everything
 else is Python/Java that is already on the machine.
