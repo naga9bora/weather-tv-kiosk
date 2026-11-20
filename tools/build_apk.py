@@ -169,7 +169,7 @@ def main():
          "-I", android_jar,
          "--manifest", os.path.join(ANDROID, "AndroidManifest.xml"),
          "-A", assets,
-         "--min-sdk-version", "26", "--target-sdk-version", "36",
+         "--min-sdk-version", "26", "--target-sdk-version", "29",
          "--version-code", "1", "--version-name", "1.0"]
     if os.path.isdir(res_dir):
         run([aapt2, "compile", "--dir", res_dir, "-o", compiled_res])

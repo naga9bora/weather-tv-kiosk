@@ -12,9 +12,9 @@ process only avoids the file:// restrictions inside Chrome on Android TV.
 
 It also proxies the Department of Environment's Air Pollutant Index feed
 (/api/haze -> https://eqms.doe.gov.my/api3/publicportalapims/mapcaqm) because the
-upstream only allows its own web-app origin (https://eqmp.doe.gov.my) to read it,
-which the TV kiosk (fake origin http://weather.local/) is not. The proxy replies
-with Access-Control-Allow-Origin: * so the kiosk's fetch() is allowed.
+upstream only allows its own web-app origin (https://eqmp.doe.gov.my) to read it.
+The preview page and these routes share one origin, so no CORS header is sent.
+Requests addressed to an unknown host name are refused (DNS-rebinding guard).
 """
 
 import argparse
@@ -105,16 +105,56 @@ def lan_ips():
     return sorted(ips)
 
 
+# Host names this preview answers to. Filled in by main(); loopback is always
+# allowed. Anything else is treated as a rebinding attempt and refused.
+ALLOWED_HOSTS = {"127.0.0.1", "localhost", "::1"}
+
+
+def hostname_of(value):
+    """'Host'/'Origin' authority -> lower-case hostname, keeping IPv6 bare."""
+    value = (value or "").strip()
+    if value.startswith("["):
+        end = value.find("]")
+        return value[1:end].lower() if end > 0 else ""
+    return value.rsplit(":", 1)[0].lower() if ":" in value else value.lower()
+
+
 class Handler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, fmt, *args):
         sys.stderr.write("[%s] %s\n" % (self.log_date_time_string(), fmt % args))
+
+    def request_allowed(self):
+        """Refuse requests not addressed to a local name.
+
+        The proxy holds the API keys. With no Access-Control-Allow-Origin the
+        browser cannot read a response cross-site, and this check stops a
+        DNS-rebinding page from reaching the proxy through its own hostname.
+        """
+        if hostname_of(self.headers.get("Host", "")) not in ALLOWED_HOSTS:
+            return False
+        origin = self.headers.get("Origin")
+        if origin:
+            try:
+                host = urllib.parse.urlsplit(origin).hostname or ""
+            except ValueError:
+                return False
+            if host.lower() not in ALLOWED_HOSTS:
+                return False
+        return True
+
     def end_headers(self):
         # Never let the TV cache a stale dashboard.
         self.send_header("Cache-Control", "no-store, max-age=0")
-        self.send_header("Access-Control-Allow-Origin", "*")
         super().end_headers()
 
+    def do_HEAD(self):
+        if not self.request_allowed():
+            return self.send_error(403, "forbidden host")
+        return super().do_HEAD()
+
     def do_GET(self):
+        if not self.request_allowed():
+            return self.send_error(403, "forbidden host")
         path = self.path.split("?", 1)[0]
         if path.rstrip("/") == "/api/haze":
             return self.proxy_haze()
@@ -395,6 +435,10 @@ def main():
 
     if not os.path.exists(os.path.join(DIST, "index.html")):
         raise SystemExit("dist/index.html missing - run: python tools/build_html.py")
+
+    ALLOWED_HOSTS.update(lan_ips())
+    if args.host not in ("0.0.0.0", "::", ""):
+        ALLOWED_HOSTS.add(args.host)
 
     handler = functools.partial(Handler, directory=DIST)
     socketserver.TCPServer.allow_reuse_address = True

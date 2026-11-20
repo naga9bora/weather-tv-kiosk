@@ -44,6 +44,10 @@ information in any report or issue.
   when its `index.html.hmac` sidecar matches the HMAC-SHA256 key in the APK.
   This blocks a page planted by another app that does not know the key; it is
   not a boundary against someone who can read the APK or the device's data.
+  On Android 10 the same directory is also protected by scoped storage
+  (targetSdk 29), so other apps cannot write into it at all.
+- **Receiver.** `BootReceiver` is not exported; it still receives the system
+  boot and package-replaced broadcasts, but other apps cannot target it.
 - **Transport.** `android/res/xml/network_security_config.xml` permits cleartext
   only for the local fake origin `weather.local`; every outbound request is
   HTTPS. ISP geolocation no longer uses the HTTP-only `ip-api` endpoint.

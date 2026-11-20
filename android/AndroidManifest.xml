@@ -4,7 +4,9 @@
     android:versionCode="1"
     android:versionName="1.0">
 
-    <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="28" />
+    <!-- targetSdk 29+ opts into scoped storage on Android 10, so other apps
+         can no longer write into this app's external files directory. -->
+    <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="29" />
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -35,9 +37,11 @@
             </intent-filter>
         </activity>
 
+        <!-- exported=false still receives the system boot broadcasts; it only
+             stops other apps from targeting the receiver explicitly. -->
         <receiver
             android:name=".BootReceiver"
-            android:exported="true"
+            android:exported="false"
             android:enabled="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
