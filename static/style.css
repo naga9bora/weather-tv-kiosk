@@ -13,8 +13,8 @@
   --scale: 1;
   --bg0: #06070d;
   --bg1: #0f1220;
-  --card: var(--ov045);
-  --line: var(--ov10);
+  --card: rgba(255,255,255,.045);
+  --line: rgba(255,255,255,.10);
   --fg: #f2f5ff;
   --dim: #8e97b3;
   --accent: #6ec3ff;
@@ -25,14 +25,14 @@
   --pad-x: 30px;
   --pad-y: calc(var(--vh) * 0.028);
   --res-margin: 4px;
-  --ov03: var(--ov03);
-  --ov035: var(--ov035);
-  --ov045: var(--ov045);
-  --ov06: var(--ov06);
-  --ov07: var(--ov07);
-  --ov10: var(--ov10);
-  --ov12: var(--ov12);
-  --warn-text: var(--warn-text);
+  --ov03: rgba(255,255,255,.03);
+  --ov035: rgba(255,255,255,.035);
+  --ov045: rgba(255,255,255,.045);
+  --ov06: rgba(255,255,255,.06);
+  --ov07: rgba(255,255,255,.07);
+  --ov10: rgba(255,255,255,.10);
+  --ov12: rgba(255,255,255,.12);
+  --warn-text: #ffe9a8;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
