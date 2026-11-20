@@ -89,6 +89,31 @@ def adb(adb_path, device, *args, check=True):
     return p
 
 
+def devtools_up(timeout=3):
+    """True when the WebView DevTools target is reachable."""
+    try:
+        cdp.targets(timeout=timeout)
+        return True
+    except Exception:
+        return False
+
+
+def open_debug_window(adb_path, device):
+    """Shipped builds keep DevTools off. Open the 10-minute window over adb.
+
+    The app persists the window in SharedPreferences and rebuilds the WebView,
+    because Chromium reads the debugging flag when a WebView is created.
+    """
+    adb(adb_path, device, "shell", "am", "start", "-n",
+        PACKAGE + "/.MainActivity", "--ez", "debug", "true", check=False)
+    deadline = time.time() + 60
+    while time.time() < deadline:
+        if devtools_up(3):
+            return True
+        time.sleep(2)
+    return False
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--adb")
@@ -115,9 +140,23 @@ def main():
     os.environ["CDP_PORT"] = str(PORT)
 
     try:
+        if not devtools_up():
+            print("devtools closed (shipped build); opening a 10-minute window ...")
+            if not open_debug_window(adb_path, args.device):
+                raise SystemExit(
+                    "FAIL: devtools still closed - build with tools\\build_apk.py --debug, "
+                    "or press MENU three times on the remote")
         if args.wait:
             time.sleep(args.wait)
-        res = cdp.evaluate(PROBE)
+        # Enabling debugging rebuilds the WebView, so give the reloaded page a
+        # moment to render its data before judging it.
+        res = None
+        deadline = time.time() + 30
+        while time.time() < deadline:
+            res = cdp.evaluate(PROBE)
+            if isinstance(res, dict) and res.get("status") and (res.get("days") or 0) >= 5:
+                break
+            time.sleep(2)
     except Exception as e:
         raise SystemExit("FAIL: cannot reach the page over devtools: %s" % e)
     finally:

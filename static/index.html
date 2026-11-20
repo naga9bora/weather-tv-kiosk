@@ -758,18 +758,30 @@ async function resolveLocation() {
     }
   }
 
-  // 3. Try ISP geolocation (ip-api.com -> ipinfo.io)
+  // 3. Try ISP geolocation over HTTPS only (ipinfo.io -> ipwho.is). ip-api's
+  // free tier is HTTP-only and would let a network observer spoof or learn the
+  // location, so it is deliberately not used.
   let isp = null;
   try {
-    const d = await jget("http://ip-api.com/json/?fields=status,city,regionName,lat,lon,isp,query", {}, 8000);
-    if (d.status === "success") isp = { lat: d.lat, lon: d.lon, city: d.city, region: d.regionName, isp: d.isp, ip: d.query, src: "ip-api" };
+    const d = await jget("https://ipinfo.io/json", {}, 8000);
+    const [lat, lon] = String(d.loc || "").split(",").map(Number);
+    if (isFinite(lat) && isFinite(lon)) isp = { lat, lon, city: d.city, region: d.region, isp: d.org, ip: d.ip, src: "ipinfo" };
   } catch (e) { /* fall through */ }
 
   if (!isp) {
     try {
-      const d = await jget("https://ipinfo.io/json", {}, 8000);
-      const [lat, lon] = String(d.loc || "").split(",").map(Number);
-      if (isFinite(lat) && isFinite(lon)) isp = { lat, lon, city: d.city, region: d.region, isp: d.org, ip: d.ip, src: "ipinfo" };
+      const d = await jget("https://ipwho.is/", {}, 8000);
+      if (d && d.success && isFinite(d.latitude) && isFinite(d.longitude)) {
+        isp = {
+          lat: d.latitude,
+          lon: d.longitude,
+          city: d.city,
+          region: d.region,
+          isp: (d.connection && (d.connection.isp || d.connection.org)) || "ipwho.is",
+          ip: d.ip,
+          src: "ipwho.is"
+        };
+      }
     } catch (e) { /* fall through */ }
   }
 
@@ -1445,10 +1457,12 @@ function renderWarnings(list) {
 
 const escapeHtml = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-/* Debug beacon: open the page with #beacon and it reports what it rendered to
-   the local dev server log. Harmless when the server is not running. */
+/* Debug beacon: open the page with #beacon on the local preview server and it
+   reports what it rendered to the server log. Restricted to localhost because
+   the kiosk's network policy allows cleartext only for weather.local. */
 function beacon(payload) {
   if (!/beacon/.test(location.hash + location.search)) return;
+  if (location.hostname !== "127.0.0.1" && location.hostname !== "localhost") return;
   try {
     fetch("http://127.0.0.1:8080/beacon?d=" + encodeURIComponent(JSON.stringify(payload)), { mode: "no-cors" });
   } catch (e) { /* ignore */ }

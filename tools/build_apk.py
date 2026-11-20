@@ -9,6 +9,7 @@ else is Python/Java that is already on the machine.
 import glob
 import json
 import os
+import secrets
 import shutil
 import subprocess
 import sys
@@ -47,18 +48,36 @@ def load_keys():
 
     They are written into android/assets/keys.properties so the APK still ships
     them, but the repository never contains them.
+
+    The same file also holds the page-signing key ("page"), generated on first
+    build. scripts/update-page.ps1 signs the pushed page with it, and
+    MainActivity refuses an external page whose signature does not match.
     """
     keys = {}
+    file_keys = {}
     path = os.path.join(ROOT, "keys.local.json")
     try:
         with open(path, "r", encoding="utf-8-sig") as f:
-            keys.update(json.load(f))
+            file_keys = json.load(f) or {}
     except (IOError, OSError, ValueError):
-        pass
+        file_keys = {}
+    keys.update(file_keys)
     for env, name in (("TOMORROW_KEY", "tomorrow"), ("OWM_KEY", "owm"),
                       ("CARTO_KEY", "carto")):
         if os.environ.get(env):
             keys[name] = os.environ[env]
+
+    if not keys.get("page"):
+        page = secrets.token_hex(32)
+        keys["page"] = page
+        file_keys["page"] = page
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(file_keys, f, indent=2, ensure_ascii=False)
+                f.write("\n")
+        except OSError as e:
+            raise SystemExit("cannot write page key to keys.local.json: %s" % e)
+        print("generated page-signing key in keys.local.json")
     return keys
 
 
@@ -83,6 +102,10 @@ def java_tool(name):
 def main():
     # --allow-keyless: build without API keys (no nowcast, no CARTO basemap).
     allow_keyless = "--allow-keyless" in sys.argv
+    # --debug: keep WebView DevTools available all the time (development only).
+    # The shipped default is off; a technician can still open a 10-minute window
+    # with MENU x3 or `adb shell am start ... --ez debug true`.
+    debug = "--debug" in sys.argv
 
     # --- unpack SDK if needed -------------------------------------------------
     for name, pattern in (("platform-29.zip", "android.jar"), ("build-tools-29.zip", "aapt2.exe")):
@@ -128,6 +151,11 @@ def main():
     with open(os.path.join(assets, "keys.properties"), "w", encoding="utf-8") as f:
         for name in ("tomorrow", "owm", "carto"):
             f.write("%s=%s\n" % (name, keys.get(name, "")))
+        # The page-signing key and the DevTools default live with the keys so
+        # the repository never carries either. A build without the key would
+        # reject every pushed page and fall back to the packaged asset.
+        f.write("page=%s\n" % keys.get("page", ""))
+        f.write("debug=%s\n" % ("true" if debug else "false"))
 
     res_dir = os.path.join(ANDROID, "res")
     compiled_res = os.path.join(BUILD, "res.zip")

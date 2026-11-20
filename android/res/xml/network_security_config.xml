@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The dashboard document is served from the fake origin http://weather.local,
+  which MainActivity intercepts in shouldInterceptRequest(); that one host needs
+  cleartext. Every other destination (weather APIs, tiles, geolocation) must use
+  HTTPS, so a stray http:// URL cannot silently downgrade.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">weather.local</domain>
+    </domain-config>
+</network-security-config>

@@ -35,7 +35,7 @@ outlook, air quality (IPU), current observations and a 7-day strip on one
 | 60-minute rain outlook | **Tomorrow.io** | 1-minute steps, proxied — the key never reaches the page. |
 | Radar | **RainViewer** | Latest frame from `api.rainviewer.com`, proxied same-origin. |
 | Basemap | **CARTO Dark Matter** → Esri → OSM | CARTO needs a free basemap key, proxied by the shell like the other keys; Esri/OSM are keyless fallbacks. |
-| Location | ISP lookup → district match | `ip-api` first, `ipinfo` fallback, then nearest MET district. |
+| Location | ISP lookup → district match | `ipinfo.io` first, `ipwho.is` fallback (both HTTPS), then nearest MET district. |
 
 Observations come from `aviationweather.gov` (keyless). The old feed on
 `metar.vatsim.net` is **simulated flight-sim weather** and is no longer used.
@@ -74,8 +74,10 @@ Order of preference (`CONFIG.manual` in `static/index.html`):
    use it if you don't want the app to request location permission.
 
 3. **ISP geolocation** — public IP → lat/lon → nearest MET forecast district  
+   (`ipinfo.io`, then `ipwho.is`, both over HTTPS)  
    (277 of the 440 districts have coordinates, from geoBoundaries ADM2).  
-   Useful when GPS is denied or the device has no GPS hardware.
+   Useful when GPS is denied or the device has no GPS hardware. The old
+   HTTP-only `ip-api` lookup was removed so location never travels in clear.  
 
 4. **Fallback** — the first district with coordinates in `data/locations.json`
    if even the network is down, so the panel still renders.
@@ -129,7 +131,9 @@ powershell -ExecutionPolicy Bypass -File .\scripts\uninstall.ps1
 (The `-ExecutionPolicy Bypass` flag is only needed if your shell blocks local
 scripts. `adb` is expected at `C:\platform-tools\adb.exe`; override with `-Adb`.
 The device address is deliberately not stored: pass `-Device <ip:5555>` or set
-`$env:KIOSK_DEVICE` — `tools/smoke.py` reads the same variable.)
+`$env:KIOSK_DEVICE` — `tools/smoke.py` reads the same variable.
+`update-page.ps1` signs the page with the `page` key from `keys.local.json`,
+which the first APK build generates automatically.)
 
 ## How the kiosk works
 
@@ -139,14 +143,27 @@ The device address is deliberately not stored: pass `-Device <ip:5555>` or set
 - The HTML is read from `/sdcard/Android/data/tv.weather.kiosk/files/index.html`
   when present, otherwise from the packaged asset — that is why page updates are
   instant while the app stays installed.
+- **The pushed page is signed.** `scripts/update-page.ps1` writes an
+  `index.html.hmac` sidecar (HMAC-SHA256, keyed by the `page` entry in
+  `keys.properties`), and `MainActivity` refuses an external page whose sidecar
+  does not match. Shared external storage is writable by legacy apps on this
+  Android version, so this stops a page planted by another app from running in
+  the kiosk origin. The packaged asset is trusted and needs no sidecar.
 - **Known-good fallback.** The page is read in the order `index.html` →
   `index.html.bak` → packaged asset. `scripts/update-page.ps1` copies the running
-  page to `index.html.bak` before every push and verifies the byte count. If the
-  new copy never sends its first heartbeat within 90 s, the shell records its
-  fingerprint in `SharedPreferences`, marks it unbootable and immediately reloads
-  from the backup — so a broken push costs about 90 s, once, instead of a dark
-  lobby. Pushing a new file changes the fingerprint and re-enables the primary
-  copy automatically.
+  page (and its sidecar) to `index.html.bak` before every push and verifies the
+  byte counts. If the new copy never sends its first heartbeat within 90 s, the
+  shell records its fingerprint in `SharedPreferences`, marks it unbootable and
+  immediately reloads from the backup — so a broken push costs about 90 s, once,
+  instead of a dark lobby. Pushing a new file changes the fingerprint and
+  re-enables the primary copy automatically.
+- **DevTools is off in a shipped build.** `tools/build_apk.py --debug` keeps it
+  on for development; otherwise a technician can open a 10-minute window with
+  three quick MENU presses or `adb shell am start -n tv.weather.kiosk/.MainActivity
+  --ez debug true`. `tools/smoke.py` opens that window automatically when it
+  cannot reach the page. Caveat: on a `userdebug` firmware (many TV boxes, and
+  this one) the platform forces WebView DevTools on regardless, so the effective
+  control there is to keep wireless adb off outside maintenance.
 
 ## Radar
 
@@ -251,8 +268,15 @@ environment (`TOMORROW_KEY`, `OWM_KEY`, `CARTO_KEY`) or from `keys.local.json`
 in the project root (git-ignored):
 
 ```json
-{ "tomorrow": "...", "owm": "...", "carto": "..." }
+{ "tomorrow": "...", "owm": "...", "carto": "...", "page": "..." }
 ```
+
+The first `tools/build_apk.py` run generates `page` if it is missing and writes
+it back to `keys.local.json`. It is not a provider key: it signs the page that
+`scripts/update-page.ps1` pushes, so the app can tell your page from a file
+another app dropped into shared storage. Keep it with the other local secrets.
+(`tools/build_apk.py --debug` keeps WebView DevTools on; the default build has
+it off. See [How the kiosk works](#how-the-kiosk-works).)
 
 `app.py` reads them at startup for local preview. `tools/build_apk.py` writes
 them into `android/assets/keys.properties`, which `MainActivity` loads, so the
@@ -276,3 +300,5 @@ It connects over adb, forwards the WebView devtools socket, and checks that the
 page renders, the status is not an error, the forecast strip has cards, the
 temperature is present, the `AndroidInterface` bridge is alive, the viewport is
 1280x720 and nothing is clipped. Exit code 1 means something needs attention.
+If the shipped build has DevTools closed, the script opens the 10-minute window
+over adb first (the page reloads once).

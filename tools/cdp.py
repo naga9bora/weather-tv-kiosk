@@ -109,14 +109,14 @@ class WS:
                 return msg.get("result", {})
 
 
-def targets():
+def targets(timeout=15):
     port = os.environ.get("CDP_PORT", "9222")
-    with urllib.request.urlopen(f"http://127.0.0.1:{port}/json", timeout=15) as r:
+    with urllib.request.urlopen(f"http://127.0.0.1:{port}/json", timeout=timeout) as r:
         return json.load(r)
 
 
-def page_target():
-    ts = [t for t in targets() if t.get("type") == "page"]
+def page_target(timeout=15):
+    ts = [t for t in targets(timeout) if t.get("type") == "page"]
     if not ts:
         raise SystemExit("no page target; is Chrome running?")
     # Prefer the dashboard served over http; skip dead file:// error tabs.

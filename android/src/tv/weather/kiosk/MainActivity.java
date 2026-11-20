@@ -30,6 +30,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.security.MessageDigest;
 import java.util.Properties;
 import java.net.URL;
 import java.security.KeyStore;
@@ -42,6 +43,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
@@ -55,8 +58,9 @@ import javax.net.ssl.X509TrustManager;
  * cross-origin fetch() calls to api.data.gov.my / Open-Meteo work while the
  * document itself never touches the network. Content is read from, in order:
  *
- *   1. <external-files-dir>/index.html   (adb push for instant updates)
- *   2. the packaged asset                (survives a wipe of external storage)
+ *   1. <external-files-dir>/index.html   (adb push for instant updates, signed)
+ *   2. <external-files-dir>/index.html.bak (previous signed copy)
+ *   3. the packaged asset                (survives a wipe of external storage)
  */
 public class MainActivity extends Activity {
 
@@ -73,6 +77,12 @@ public class MainActivity extends Activity {
     // asset, and remember the bad copy so the 6-hourly reload does not retry it.
     private static final String PREFS = "kiosk";
     private static final String PREF_BAD_PAGE = "badPageFp";
+    // DevTools is off unless a technician opens a short maintenance window
+    // (MENU x3) or the app is started with `--ez debug true`. The window is
+    // stored in wall-clock time so it survives the restart that a page push
+    // performs.
+    private static final String PREF_DEBUG_UNTIL = "debugUntil";
+    private static final long DEBUG_WINDOW_MS = 10L * 60 * 1000;   // 10 minutes
 
     // Bridge between the WebView page and the host Activity.
     // The page can call window.AndroidInterface.requestExit() to ask the kiosk
@@ -97,6 +107,7 @@ public class MainActivity extends Activity {
     private volatile long maintenanceUntilMs = 0;
     private int menuPressCount = 0;
     private long menuPressStartMs = 0;
+    private boolean debugWindowWasActive = false;
 
     @Override
     protected void onCreate(Bundle saved) {
@@ -105,11 +116,18 @@ public class MainActivity extends Activity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         goImmersive();
 
-        if (Build.VERSION.SDK_INT >= 19) {
-            WebView.setWebContentsDebuggingEnabled(true);
-        }
-
         loadKeys();
+        if (getIntent() != null && getIntent().hasExtra("debug")) {
+            persistDebugWindow(getIntent().getBooleanExtra("debug", false));
+        }
+        boolean debugging = isDebugWindowActive() || buildDebug();
+        Log.i(TAG, "debug gate: window=" + isDebugWindowActive()
+                + " build=" + buildDebug() + " -> " + debugging);
+        if (Build.VERSION.SDK_INT >= 19) {
+            WebView.setWebContentsDebuggingEnabled(debugging);
+        }
+        debugWindowWasActive = debugging;
+
         web = buildWebView();
         installBridge(web);
         setContentView(web);
@@ -152,6 +170,16 @@ public class MainActivity extends Activity {
         ui.postDelayed(new Runnable() {
             @Override
             public void run() {
+                if (debugWindowWasActive && !isDebugWindowActive() && !buildDebug()) {
+                    if (Build.VERSION.SDK_INT >= 19) {
+                        WebView.setWebContentsDebuggingEnabled(false);
+                    }
+                    debugWindowWasActive = false;
+                    Log.i(TAG, "debug window expired, rebuilding without DevTools");
+                    recreateWebView();
+                    ui.postDelayed(this, 30000L);
+                    return;
+                }
                 long now = SystemClock.elapsedRealtime();
                 if (lastResumedMs > 0 && (now - lastResumedMs) > 120000L
                         && now > maintenanceUntilMs) {
@@ -305,6 +333,11 @@ public class MainActivity extends Activity {
      * recorded by fingerprint, so a broken push costs 90 s once rather than
      * 90 s on every 6-hourly reload; pushing a new file changes the
      * fingerprint and re-enables the primary copy automatically.
+     *
+     * External pages must be signed: scripts/update-page.ps1 pushes a
+     * HMAC-SHA256 sidecar (index.html.hmac) keyed by the "page" entry in
+     * keys.properties. This keeps a page planted by another app on shared
+     * external storage from running. The packaged asset is trusted.
      */
     private byte[] loadIndex() {
         File dir = null;
@@ -319,19 +352,21 @@ public class MainActivity extends Activity {
             if (isKnownBad(primary)) {
                 Log.w(TAG, "primary page marked unbootable, using fallback");
             } else {
-                byte[] body = readFile(primary);
+                byte[] body = readSignedPage(primary);
                 if (body != null) {
                     loadedFrom = "primary";
                     return body;
                 }
+                Log.w(TAG, "primary page missing/invalid signature, using fallback");
             }
         }
         if (backup != null && backup.isFile()) {
-            byte[] body = readFile(backup);
+            byte[] body = readSignedPage(backup);
             if (body != null) {
                 loadedFrom = "backup";
                 return body;
             }
+            Log.w(TAG, "backup page missing/invalid signature, using packaged asset");
         }
         try (InputStream in = getAssets().open("index.html")) {
             loadedFrom = "asset";
@@ -340,6 +375,47 @@ public class MainActivity extends Activity {
             Log.e(TAG, "asset index.html missing", e);
             return null;
         }
+    }
+
+    /** Reads a pushed page only when its .hmac sidecar matches the page key. */
+    private byte[] readSignedPage(File page) {
+        String key = keys.getProperty("page", "");
+        if (key.isEmpty()) {
+            Log.w(TAG, "no page key configured, refusing " + page.getName());
+            return null;
+        }
+        byte[] body = readFile(page);
+        if (body == null) return null;
+        String expected = readText(new File(page.getPath() + ".hmac"));
+        String actual = hmacHex(key, body);
+        if (expected == null || expected.isEmpty() || actual == null
+                || !MessageDigest.isEqual(actual.getBytes(), expected.getBytes())) {
+            return null;
+        }
+        return body;
+    }
+
+    private static String hmacHex(String key, byte[] body) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(key.getBytes("UTF-8"), "HmacSHA256"));
+            byte[] d = mac.doFinal(body);
+            StringBuilder sb = new StringBuilder(d.length * 2);
+            for (byte b : d) {
+                sb.append(Character.forDigit((b >> 4) & 0xF, 16));
+                sb.append(Character.forDigit(b & 0xF, 16));
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            Log.w(TAG, "page signature failed: " + e);
+            return null;
+        }
+    }
+
+    private static String readText(File f) {
+        byte[] b = readFile(f);
+        if (b == null) return null;
+        return new String(b, java.nio.charset.StandardCharsets.UTF_8).trim();
     }
 
     private static byte[] readFile(File f) {
@@ -486,6 +562,44 @@ public class MainActivity extends Activity {
             keys.load(in);
         } catch (IOException e) {
             Log.w(TAG, "keys.properties missing - keyed proxies will reply 503");
+        }
+    }
+
+    /** A build made with tools/build_apk.py --debug keeps DevTools available. */
+    private boolean buildDebug() {
+        return "true".equalsIgnoreCase(keys.getProperty("debug", ""));
+    }
+
+    private boolean isDebugWindowActive() {
+        long until = getSharedPreferences(PREFS, MODE_PRIVATE)
+                .getLong(PREF_DEBUG_UNTIL, 0L);
+        return until > System.currentTimeMillis();
+    }
+
+    private void persistDebugWindow(boolean on) {
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                .putLong(PREF_DEBUG_UNTIL,
+                        on ? System.currentTimeMillis() + DEBUG_WINDOW_MS : 0L)
+                .apply();
+    }
+
+    /**
+     * Opens or closes the short DevTools window. The WebView reads the debug
+     * flag when it is created, so a change rebuilds it (the page reloads in a
+     * few seconds). Used by the MENU gesture and by tools/smoke.py.
+     */
+    private void setDebugWindow(boolean on) {
+        boolean wasActive = isDebugWindowActive();
+        boolean changed = wasActive != on;
+        persistDebugWindow(on);
+        if (Build.VERSION.SDK_INT >= 19) {
+            WebView.setWebContentsDebuggingEnabled(on);
+        }
+        debugWindowWasActive = on;
+        Log.i(TAG, "webview debugging " + (on ? "ON" : "OFF")
+                + " for 10 min (was=" + wasActive + " rebuild=" + changed + ")");
+        if (changed) {
+            recreateWebView();
         }
     }
 
@@ -918,6 +1032,16 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (intent != null && intent.hasExtra("debug")) {
+            Log.i(TAG, "onNewIntent debug=" + intent.getBooleanExtra("debug", false));
+            setDebugWindow(intent.getBooleanExtra("debug", false));
+        }
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
         lastResumedMs = SystemClock.elapsedRealtime();
@@ -966,9 +1090,11 @@ public class MainActivity extends Activity {
                 if (now > maintenanceUntilMs) {
                     maintenanceUntilMs = now + 10L * 60 * 1000;
                     Log.i(TAG, "maintenance mode ON for 10 min");
+                    setDebugWindow(true);
                 } else {
                     maintenanceUntilMs = 0;
                     Log.i(TAG, "maintenance mode OFF");
+                    setDebugWindow(false);
                 }
                 return true;
             }
