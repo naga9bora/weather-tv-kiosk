@@ -317,7 +317,10 @@ const CONFIG = {
   // successful cycle, and appends /fail after three empty cycles in a row, so a
   // dark panel reaches your phone instead of waiting for someone to notice.
   // Leave null to disable.
-  healthPing: null   // e.g. "https://hc-ping.com/00000000-0000-0000-0000-000000000000"
+  healthPing: null,   // e.g. "https://hc-ping.com/00000000-0000-0000-0000-000000000000"
+
+  // UI theme: "dark" (default) | "light" | "auto" (follows prefers-color-scheme).
+  theme: "dark"
 };
 
 const TZ = "Asia/Kuala_Lumpur";
@@ -1656,6 +1659,14 @@ async function refresh() {
   });
 }
 
+function applyTheme() {
+  const t = (CONFIG.theme || "dark").toLowerCase();
+  const light = t === "light" || (t === "auto" && window.matchMedia &&
+    window.matchMedia("(prefers-color-scheme: light)").matches);
+  document.body.classList.toggle("light", light);
+}
+
+applyTheme();
 setVh();
 setResolution();
 tickClock();
