@@ -146,9 +146,10 @@ which the first APK build generates automatically.)
 - **The pushed page is signed.** `scripts/update-page.ps1` writes an
   `index.html.hmac` sidecar (HMAC-SHA256, keyed by the `page` entry in
   `keys.properties`), and `MainActivity` refuses an external page whose sidecar
-  does not match. Shared external storage is writable by legacy apps on this
-  Android version, so this stops a page planted by another app from running in
-  the kiosk origin. The packaged asset is trusted and needs no sidecar.
+  does not match. On Android 10 the directory is also protected by scoped
+  storage (targetSdk 29), so other apps cannot write into it in the first
+  place; the HMAC is the second layer for any path that still reaches it.
+  The packaged asset is trusted and needs no sidecar.
 - **Known-good fallback.** The page is read in the order `index.html` →
   `index.html.bak` → packaged asset. `scripts/update-page.ps1` copies the running
   page (and its sidecar) to `index.html.bak` before every push and verifies the
@@ -213,6 +214,10 @@ The legacy MET CAPPI GIF proxy (`/api/radar/<region>`, `/api/radar/<region>/meta
 - Autostart: `BOOT_COMPLETED` receiver + the `SYSTEM_ALERT_WINDOW` app-op that
   `scripts/install.ps1` grants (Android 10 blocks background activity starts
   without it). Verified across a real reboot.
+- **Storage and receiver hardening.** The app targets Android 10 (targetSdk 29),
+  so scoped storage stops other apps from writing into its external files
+  directory, and `BootReceiver` is not exported (it still receives the system
+  boot and package-replaced broadcasts).
 
 ### Page-side housekeeping
 
@@ -287,7 +292,8 @@ element. `python tools\build_apk.py --allow-keyless` builds without them.
 
 `app.py` listens on `127.0.0.1` by default, because it proxies those keys.
 Pass `--host 0.0.0.0` only on a network you trust, to preview from the TV or a
-phone.
+phone. It also refuses requests whose `Host`/`Origin` is not a local name, so
+a page on another origin cannot use DNS rebinding to reach the proxy.
 
 ## Health check
 
