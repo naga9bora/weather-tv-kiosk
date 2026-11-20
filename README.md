@@ -243,9 +243,11 @@ configured in `CONFIG`:
   your area is not affected — open the banner text for the full advisory.
 - The device WebView is Chrome 74, so the page avoids `clamp()`, `dvh`, flex
   `gap`, and `??`. Keep that in mind when editing.
-- **Theme.** The dashboard ships dark. Set `CONFIG.theme` in `static/index.html`
-  to `"light"` or `"auto"` (follows `prefers-color-scheme`) for a light UI;
-  the radar basemap stays dark in both.
+- **Theme.** The dashboard ships dark. Click the `tema:` badge in the footer to
+  cycle dark → light → auto; the choice is saved in the browser (localStorage)
+  and survives reloads. Or set `CONFIG.theme` in `static/index.html` to
+  `"light"` or `"auto"` for a build-time default. The radar basemap stays dark
+  in both.
 
 ## Repository
 

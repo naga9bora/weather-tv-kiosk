@@ -234,6 +234,8 @@
       <span id="updated">belum dikemas kini</span>
       <span class="dot"></span>
       <span id="status">—</span>
+      <span class="dot"></span>
+      <button id="themeBtn" class="badge themeBtn" type="button" aria-label="Tukar tema">tema: gelap</button>
     </div>
     <div class="l">
       <span class="badge" id="locBadge">lokasi</span>
@@ -1659,14 +1661,35 @@ async function refresh() {
   });
 }
 
-function applyTheme() {
-  const t = (CONFIG.theme || "dark").toLowerCase();
-  const light = t === "light" || (t === "auto" && window.matchMedia &&
+const THEMES = ["dark", "light", "auto"];
+const THEME_LABEL = { dark: "gelap", light: "terang", auto: "auto" };
+function storedTheme() { try { return localStorage.getItem("kioskTheme"); } catch (e) { return null; } }
+function currentTheme() {
+  const s = storedTheme();
+  return THEMES.indexOf(s) >= 0 ? s : (CONFIG.theme || "dark");
+}
+function applyTheme(name) {
+  const t = (name || currentTheme()).toLowerCase();
+  const idx = THEMES.indexOf(t) >= 0 ? THEMES.indexOf(t) : 0;
+  const chosen = THEMES[idx];
+  try { localStorage.setItem("kioskTheme", chosen); } catch (e) {}
+  const light = chosen === "light" || (chosen === "auto" && window.matchMedia &&
     window.matchMedia("(prefers-color-scheme: light)").matches);
   document.body.classList.toggle("light", light);
+  const btn = (typeof $ === "function") ? $("themeBtn") : document.getElementById("themeBtn");
+  if (btn) btn.textContent = "tema: " + THEME_LABEL[chosen];
+  CONFIG.theme = chosen;
+}
+function cycleTheme() {
+  const cur = currentTheme();
+  const idx = THEMES.indexOf(cur);
+  applyTheme(THEMES[(idx + 1) % THEMES.length]);
 }
 
-applyTheme();
+applyTheme(currentTheme());
+const _themeBtn = (typeof $ === "function") ? $("themeBtn") : document.getElementById("themeBtn");
+if (_themeBtn) _themeBtn.addEventListener("click", cycleTheme);
+
 setVh();
 setResolution();
 tickClock();

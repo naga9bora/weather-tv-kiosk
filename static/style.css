@@ -427,6 +427,9 @@ footer {
 footer .l { display: flex; align-items: center; flex-wrap: wrap; }
 footer .l > * { margin-right: .6em; }
 .badge { border: 1px solid var(--line); border-radius: 999px; padding: .18em .6em; }
+.themeBtn { cursor: pointer; font: inherit; color: var(--dim); background: var(--ov07); }
+.themeBtn:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+.themeBtn:active { background: var(--ov12); }
 .badge.stale { border-color: rgba(255,107,107,.5); color: #ffb3b3; }
 /* Data age: amber past 20 min, red past 45 min (see paintStaleness). */
 #status.aging { color: var(--warn); }
