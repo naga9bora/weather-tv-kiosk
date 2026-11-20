@@ -36,6 +36,8 @@ ADB_CANDIDATES = [
 PROBE = r"""(() => {
   const t = el => (el ? (el.textContent || '').replace(/\s+/g, ' ').trim() : null);
   // Layout boxes must not overflow internally: a clipped #haze is a hole in the panel.
+  const app = document.getElementById('app');
+  const ar = app ? app.getBoundingClientRect() : null;
   const over = [];
   ['app', 'now', 'haze', 'fc', 'radar'].forEach(id => {
     const el = document.getElementById(id);
@@ -67,7 +69,9 @@ PROBE = r"""(() => {
     fcSrc: t(document.getElementById('fcSrc')),
     bridge: { beat: beat, exit: exit },
     dim: dim ? getComputedStyle(dim).opacity : null,
-    size: [innerWidth, innerHeight],
+    size: app ? [app.offsetWidth, app.offsetHeight] : [innerWidth, innerHeight],
+    panel: [innerWidth, innerHeight],
+    scale: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--scale')) || 1,
     over: over,
     clipped: clipped
   };

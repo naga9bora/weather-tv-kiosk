@@ -1470,8 +1470,12 @@ function beacon(payload) {
 
 /* Clock */
 function setVh() {
-  document.documentElement.style.setProperty("--vh", window.innerHeight + "px");
-  // Detect resolution and set CSS vars
+  // Design canvas is fixed at 1280x720; scale the whole app to fit the panel.
+  const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+  const scale = Math.min(s, 2);   // cap upscaling (4K); allow downscaling for small panels
+  document.documentElement.style.setProperty("--scale", scale);
+  // Keep Leaflet in sync with the (possibly resized) container.
+  try { if (window.radarMap && typeof radarMap.invalidateSize === "function") radarMap.invalidateSize(); } catch (e) {}
   setResolution();
 }
 

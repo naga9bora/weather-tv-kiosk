@@ -158,13 +158,12 @@ which the first APK build generates automatically.)
   immediately reloads from the backup — so a broken push costs about 90 s, once,
   instead of a dark lobby. Pushing a new file changes the fingerprint and
   re-enables the primary copy automatically.
-- **DevTools is off in a shipped build.** `tools/build_apk.py --debug` keeps it
-  on for development; otherwise a technician can open a 10-minute window with
-  three quick MENU presses or `adb shell am start -n tv.weather.kiosk/.MainActivity
-  --ez debug true`. `tools/smoke.py` opens that window automatically when it
-  cannot reach the page. Caveat: on a `userdebug` firmware (many TV boxes, and
-  this one) the platform forces WebView DevTools on regardless, so the effective
-  control there is to keep wireless adb off outside maintenance.
+- **Multi-resolution.** The page is authored on a fixed 1280x720 canvas and the
+  whole `#app` is scaled with `transform: scale(var(--scale))` to fit the panel
+  (`--scale = min(innerWidth/1280, innerHeight/720)`, capped at 2x). So the
+  tested 1280x720 layout is preserved on 1080p/4K and odd aspect ratios; on a
+  4K panel the UI is 2x with letterbox bars. `tools/smoke.py` still validates
+  the 1280x720 design canvas.
 
 ## Radar
 
