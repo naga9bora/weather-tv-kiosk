@@ -246,8 +246,10 @@ configured in `CONFIG`:
 - **Theme.** The dashboard ships dark. Click the `tema:` badge in the footer to
   cycle dark → light → auto; the choice is saved in the browser (localStorage)
   and survives reloads. Or set `CONFIG.theme` in `static/index.html` to
-  `"light"` or `"auto"` for a build-time default. The radar basemap stays dark
-  in both.
+  `"light"` or `"auto"` for a build-time default. The radar basemap switches to
+  CARTO's light style in light mode.
+
+![Light theme variant](docs/kiosk-light.png)
 
 ## Repository
 
