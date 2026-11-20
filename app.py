@@ -220,6 +220,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         it. Only the two styles the dashboard uses can be requested.
         """
         rest = path[len("/api/basemap/"):]
+        theme = "dark"
+        if rest.startswith("light/") or rest.startswith("dark/"):
+            slash = rest.index("/")
+            theme = rest[:slash]
+            rest = rest[slash + 1:]
         labels = rest.startswith("labels/")
         if labels:
             rest = rest[len("labels/"):]
@@ -240,7 +245,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if not key:
             self.send_error(503, "CARTO key not configured")
             return
-        style = "dark_only_labels" if labels else "dark_nolabels"
+        style = ("light_only_labels" if labels else "light_nolabels") if theme == "light" else ("dark_only_labels" if labels else "dark_nolabels")
         url = CARTO_TILE_URL % (style, z, x, y, key)
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0",

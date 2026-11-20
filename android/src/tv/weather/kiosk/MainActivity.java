@@ -688,6 +688,12 @@ public class MainActivity extends Activity {
         Map<String, String> h = new HashMap<>();
         h.put("Access-Control-Allow-Origin", "*");
         String rest = path.substring("/api/basemap/".length());
+        String theme = "dark";
+        if (rest.startsWith("light/") || rest.startsWith("dark/")) {
+            int slash = rest.indexOf('/');
+            theme = rest.substring(0, slash);
+            rest = rest.substring(slash + 1);
+        }
         boolean labels = rest.startsWith("labels/");
         if (labels) rest = rest.substring("labels/".length());
         if (rest.endsWith(".png")) rest = rest.substring(0, rest.length() - 4);
@@ -706,7 +712,12 @@ public class MainActivity extends Activity {
         if (x < 0 || x >= span || y < 0 || y >= span) return badRequest(h, "bad tile");
         String key = keys.getProperty("carto", "");
         if (key.isEmpty()) return noConfig(h, "carto");
-        String style = labels ? "dark_only_labels" : "dark_nolabels";
+        String style;
+        if (theme.equals("light")) {
+            style = labels ? "light_only_labels" : "light_nolabels";
+        } else {
+            style = labels ? "dark_only_labels" : "dark_nolabels";
+        }
         String url = String.format(java.util.Locale.US, CARTO_TILE_URL, style, z, x, y, key);
         try {
             byte[] body = fetchUrlBytes(url, 15000);

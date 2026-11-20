@@ -575,7 +575,7 @@ const RADAR_VIEW = {
   sem:  { center: [3.9, 102.1], zoom: 6 },
   east: { center: [4.3, 114.3], zoom: 6 }
 };
-let radarMap = null, radarBase = null, radarLabels = null, radarLayer = null, radarFramePath = null, radarRegionCur = null;
+let radarMap = null, radarBase = null, radarLabels = null, radarLayer = null, radarFramePath = null, radarRegionCur = null, radarBaseIdx = 0;
 
 /* Basemap candidates, most preferred first. CARTO Dark Matter needs a free
  * basemap key; the shell proxies its tiles (/api/basemap/...) so no key sits in
@@ -585,8 +585,8 @@ const RADAR_BASES = [
   {
     credit: "&copy; OpenStreetMap &middot; &copy; CARTO",
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
-    base: "/api/basemap/{z}/{x}/{y}.png",
-    labels: "/api/basemap/labels/{z}/{x}/{y}.png",
+    base: "/api/basemap/{t}/{z}/{x}/{y}.png",
+    labels: "/api/basemap/{t}/labels/{z}/{x}/{y}.png",
     maxZoom: 20
   },
   {
@@ -594,6 +594,8 @@ const RADAR_BASES = [
     attribution: '&copy; <a href="https://www.esri.com/">Esri</a>, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     base: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
     labels: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
+    baseLight: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+    labelsLight: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
     labelClass: "radarLabels", maxZoom: 16
   },
   {
@@ -604,20 +606,33 @@ const RADAR_BASES = [
   }
 ];
 
+function basemapTheme() {
+  const t = (CONFIG.theme || "dark").toLowerCase();
+  if (t === "light") return "light";
+  if (t === "auto" && window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) return "light";
+  return "dark";
+}
+
 function installRadarBase(idx) {
   const map = radarMap;
   if (!map) return;
+  radarBaseIdx = idx;
   if (radarBase) { try { map.removeLayer(radarBase); } catch (e) {} radarBase = null; }
   if (radarLabels) { try { map.removeLayer(radarLabels); } catch (e) {} radarLabels = null; }
   const cfg = RADAR_BASES[idx];
+  const theme = basemapTheme();
+  const baseTemplate = (theme === "light" && cfg.baseLight) ? cfg.baseLight : cfg.base;
+  const labelsTemplate = (theme === "light" && cfg.labelsLight) ? cfg.labelsLight : (cfg.labels || "");
   const baseOpts = { attribution: cfg.attribution, maxZoom: cfg.maxZoom };
   if (cfg.subdomains) baseOpts.subdomains = cfg.subdomains;
-  if (cfg.className) baseOpts.className = cfg.className;
-  radarBase = L.tileLayer(cfg.base, baseOpts).addTo(map);
-  if (cfg.labels) {
+  if (cfg.className && theme === "dark") baseOpts.className = cfg.className;
+  const baseUrl = baseTemplate.replace("{t}", theme);
+  radarBase = L.tileLayer(baseUrl, baseOpts).addTo(map);
+  if (labelsTemplate) {
     const labelOpts = { maxZoom: cfg.maxZoom, pane: "radarLabels", className: cfg.labelClass || "" };
     if (cfg.subdomains) labelOpts.subdomains = cfg.subdomains;
-    radarLabels = L.tileLayer(cfg.labels, labelOpts).addTo(map);
+    const labelsUrl = labelsTemplate.replace("{t}", theme);
+    radarLabels = L.tileLayer(labelsUrl, labelOpts).addTo(map);
   }
   const providers = $("radarProviders");
   if (providers) providers.innerHTML = cfg.credit + " · RainViewer · Tomorrow.io";
@@ -1679,6 +1694,8 @@ function applyTheme(name) {
   const btn = (typeof $ === "function") ? $("themeBtn") : document.getElementById("themeBtn");
   if (btn) btn.textContent = "tema: " + THEME_LABEL[chosen];
   CONFIG.theme = chosen;
+  // Re-install the basemap so CARTO uses the matching light/dark style.
+  try { if (radarMap && typeof installRadarBase === "function") installRadarBase(radarBaseIdx || 0); } catch (e) {}
 }
 function cycleTheme() {
   const cur = currentTheme();
